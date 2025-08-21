@@ -1,5 +1,4 @@
 <?php
-// app/Http/Controllers/LeaveRequestController.php
 
 namespace App\Http\Controllers;
 
@@ -14,11 +13,12 @@ class LeaveRequestController extends Controller
      */
     public function index()
     {
-        if(session('role') == 'Admin' || session('role') == 'HR Manager'){
+        if (session('role') === 'Admin' || session('role') === 'HR Manager') {
             $leave_requests = LeaveRequest::all();
-        }else {
+        } else {
             $leave_requests = LeaveRequest::where('employee_id', session('employee_id'))->get();
         }
+
         return view('leave_requests.index', compact('leave_requests'));
     }
 
@@ -36,29 +36,25 @@ class LeaveRequestController extends Controller
      */
     public function store(Request $request)
     {
-        if(session('role') == 'Admin' || session('role') == 'HR Manager'){
-            $request->validate([
-                'employee_id' => 'required|exists:employees,id',
-                'leave_type'  => 'required|string|max:255',
-                'start_date'  => 'required|date',
-                'end_date'    => 'required|date|after_or_equal:start_date',
-                'status'      => 'required|in:pending,approved,rejected',
-            ]);
+        $isPrivileged = session('role') === 'Admin' || session('role') === 'HR Manager';
 
-            $request->merge([
-            'status'      => 'pending',
-            ]);
+        $request->validate([
+            'leave_type'  => 'required|string|max:255',
+            'start_date'  => 'required|date',
+            'end_date'    => 'required|date|after_or_equal:start_date',
+            'employee_id' => $isPrivileged ? 'required|exists:employees,id' : '',
+            'status'      => $isPrivileged ? 'required|in:pending,approved,rejected' : '',
+        ]);
 
-            LeaveRequest::create($request->all());
-        }else {
-            LeaveRequest::create([
-                'employee_id' => session('employee_id'),
-                'leave_type'  => $request->leave_type,
-                'start_date'  => $request->start_date,
-                'end_date'    => $request->end_date,
-                'status'      => 'pending',
-            ]);
-        }
+        $data = [
+            'employee_id' => $isPrivileged ? $request->employee_id : session('employee_id'),
+            'leave_type'  => $request->leave_type,
+            'start_date'  => $request->start_date,
+            'end_date'    => $request->end_date,
+            'status'      => $isPrivileged ? $request->status : 'pending',
+        ];
+
+        LeaveRequest::create($data);
 
         return redirect()->route('leave_requests.index')->with('success', 'Leave request submitted successfully.');
     }
@@ -72,22 +68,24 @@ class LeaveRequestController extends Controller
     }
 
     /**
-     * Show the form for approving the specified leave request.
+     * Approve the specified leave request.
      */
     public function approve(int $id)
     {
         $leave_request = LeaveRequest::findOrFail($id);
         $leave_request->update(['status' => 'approved']);
+
         return redirect()->route('leave_requests.index')->with('success', 'Leave request approved successfully.');
     }
 
     /**
-     * Show the form for rejecting the specified leave request.
+     * Reject the specified leave request.
      */
     public function reject(int $id)
     {
         $leave_request = LeaveRequest::findOrFail($id);
         $leave_request->update(['status' => 'rejected']);
+
         return redirect()->route('leave_requests.index')->with('success', 'Leave request rejected successfully.');
     }
 
