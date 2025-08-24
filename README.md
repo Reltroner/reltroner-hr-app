@@ -88,6 +88,12 @@ php artisan serve
   - LeaveRequestController.php
 ```
 
+### ➕ Admin Leave Request Form
+![Admin Leave Request Form](public/images/admin-ui.png)
+
+### 📊 User Leave Request Form
+![User Leave Request Form](public/images/user-ui.png)
+
 ## 🔐 Access & Authentication
 
 * Laravel Breeze is enabled
