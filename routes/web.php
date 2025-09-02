@@ -81,4 +81,9 @@ Route::get('/api/public-employees', function () {
     return Response::json(Employee::select('id', 'fullname', 'email', 'department_id')->get());
 });
 
+// routes/web.php (dalam group auth)
+Route::post('/attendance/check-in', [PresenceController::class, 'checkIn'])
+    ->name('attendance.checkin')
+    ->middleware(['auth']);
+
 require __DIR__.'/auth.php';

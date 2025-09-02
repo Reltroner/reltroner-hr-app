@@ -7,6 +7,8 @@ use App\Models\Presence;
 use App\Models\Employee;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Session;
 
 class PresenceController extends Controller
 {
@@ -45,8 +47,8 @@ class PresenceController extends Controller
 
         $request->validate([
             'employee_id' => 'required|exists:employees,id',
-            'check_in'    => 'required|date_format:Y-m-d H:i:s',
-            'date'        => 'required|date_format:Y-m-d',
+            'check_in'    => 'required|date',
+            'date'        => 'required|date',
             'status'      => 'required|in:present,absent,late,leave',
         ]);
 
@@ -120,5 +122,41 @@ class PresenceController extends Controller
         $presence->delete();
 
         return redirect()->route('presences.index')->with('success', 'Presence deleted successfully.');
+    }
+
+    public function checkIn(Request $request)
+    {
+        $user = Auth::user();
+        // kalau kamu ikat Employee via session, kita fallback ke session dulu
+        $employeeId = session('employee_id');
+
+        // fallback lain: kalau User punya relasi employee:
+        if (!$employeeId && optional($user)->employee) {
+            $employeeId = $user->employee->id;
+        }
+
+        if (!$employeeId) {
+            return back()->withErrors(['attendance' => 'Employee context is missing.']);
+        }
+
+        // Cegah double check-in
+        $today = now()->toDateString();
+        $exists = \App\Models\Presence::where('employee_id',$employeeId)
+            ->whereDate('date',$today)
+            ->exists();
+
+        if ($exists) {
+            return back()->withErrors(['attendance' => 'You have already checked in today.']);
+        }
+
+        \App\Models\Presence::create([
+            'employee_id' => $employeeId,
+            'check_in'    => $today, // kolommu tipe DATE, jadi pakai Y-m-d
+            'check_out'   => null,
+            'date'        => $today,
+            'status'      => 'present',
+        ]);
+
+        return back()->with('status', 'checked-in');
     }
 }
