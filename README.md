@@ -99,7 +99,7 @@ LeaveRequestController.php
 
 # 📥 Local Installation
 
-```bash
+````
 git clone https://github.com/Reltroner/reltroner-hr-app.git
 cd reltroner-hr-app
 
