@@ -30,15 +30,16 @@ class DepartmentController extends Controller
      */
     public function store(Request $request)
     {
-        $request->validate([
-            'name'        => 'required|string|max:255',
+        $validated = $request->validate([
+            'name'        => 'required|string|max:255|unique:departments,name',
             'description' => 'nullable|string',
             'status'      => 'required|in:active,inactive',
         ]);
 
-        Department::create($request->all());
+        Department::create($validated);
 
-        return redirect()->route('departments.index')->with('success', 'Department created successfully.');
+        return redirect()->route('departments.index')
+            ->with('success', 'Department created successfully.');
     }
 
     /**

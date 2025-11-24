@@ -14,7 +14,7 @@ return new class extends Migration
 
         Schema::create('departments', function (Blueprint $table) {
             $table->id();
-            $table->string('name');
+            $table->string('name')->unique();
             $table->text('description')->nullable();
             $table->string('status');
             $table->timestamps();
@@ -77,6 +77,7 @@ return new class extends Migration
             $table->string('status');
             $table->timestamps();
             $table->softDeletes();
+            $table->unique(['employee_id', 'date']);
         });
 
         Schema::create('leave_requests', function (Blueprint $table) {

@@ -32,8 +32,7 @@ class PayrollController extends Controller
 
     public function create()
     {
-        // keep employees ordered for UX
-        $employees = Employee::orderBy('name')->get();
+        $employees = Employee::orderBy('fullname')->get();
         return view('payrolls.create', compact('employees'));
     }
 
@@ -94,7 +93,7 @@ class PayrollController extends Controller
 
     public function edit(Payroll $payroll)
     {
-        $employees = Employee::orderBy('name')->get();
+        $employees = Employee::orderBy('fullname')->get();
         return view('payrolls.edit', compact('payroll', 'employees'));
     }
 

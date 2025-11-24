@@ -39,39 +39,65 @@ class PresenceController extends Controller
      */
     public function store(Request $request)
     {
-        if(session('role') == 'Admin' || session('role') == 'HR Manager'){
+        $isAdmin = in_array(session('role'), ['Admin', 'HR Manager']);
 
-        $request->merge([
-        'check_in'  => date('Y-m-d H:i:s', strtotime($request->check_in)),
-        ]);
+        if ($isAdmin) {
+            // ===== Admin / HR: manual input =====
+            $validated = $request->validate([
+                'employee_id' => 'required|exists:employees,id',
+                'check_in'    => 'required|date',
+                'date'        => 'required|date',
+                'status'      => 'required|in:present,absent,late,leave',
+            ]);
 
-        $request->validate([
-            'employee_id' => 'required|exists:employees,id',
-            'check_in'    => 'required|date',
-            'date'        => 'required|date',
-            'status'      => 'required|in:present,absent,late,leave',
-        ]);
+            $validated['check_in'] = Carbon::parse($validated['check_in']);
+            $validated['date']     = Carbon::parse($validated['date'])->toDateString();
+
+            // Cek apakah sudah ada presence untuk karyawan & tanggal ini
+            $alreadyExists = Presence::where('employee_id', $validated['employee_id'])
+                ->whereDate('date', $validated['date'])
+                ->exists();
+
+            if ($alreadyExists) {
+                return back()
+                    ->withInput()
+                    ->withErrors([
+                        'employee_id' => 'Presence for this employee and date already exists.',
+                    ]);
+            }
+
+            $validated['check_out'] = null;
+
+            Presence::create($validated);
+
+        } else {
+            // ===== Employee biasa: self check-in =====
+            $employeeId = session('employee_id');
+            $today      = Carbon::today();
+
+            // Cek double check-in
+            $alreadyExists = Presence::where('employee_id', $employeeId)
+                ->whereDate('date', $today)
+                ->exists();
+
+            if ($alreadyExists) {
+                return redirect()->route('presences.index')
+                    ->with('warning', 'You have already checked in today.');
+            }
 
             Presence::create([
-            'employee_id' => $request->employee_id,
-            'check_in'    => $request->check_in,
-            'check_out'   => null, // biarkan kosong/null
-            'date'        => $request->date,
-            'status'      => $request->status,
-        ]);
-        }else {
-            Presence::create([
-                'employee_id' => session('employee_id'),
-                'check_in'    => Carbon::now()->format('Y-m-d H:i:s'),
-                'check_out'   => null, 
+                'employee_id' => $employeeId,
+                'check_in'    => Carbon::now(),
+                'check_out'   => null,
                 'latitude'    => $request->latitude,
                 'longitude'   => $request->longitude,
-                'date'        => Carbon::now()->format('Y-m-d'),
+                'date'        => $today->toDateString(),
                 'status'      => 'present',
             ]);
         }
 
-        return redirect()->route('presences.index')->with('success', 'Presence recorded successfully.');
+        return redirect()->route('presences.index')
+            ->with('success', 'Presence recorded successfully.');
     }
 
     /**
