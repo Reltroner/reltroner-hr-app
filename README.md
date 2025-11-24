@@ -61,8 +61,6 @@ Built as a real-world HR workflow engine incorporating:
 
 # 📚 Module Structure
 
-```
-
 app/Models
 Employee.php
 Task.php
@@ -99,7 +97,7 @@ LeaveRequestController.php
 
 # 📥 Local Installation
 
-````
+```
 git clone https://github.com/Reltroner/reltroner-hr-app.git
 cd reltroner-hr-app
 
@@ -112,7 +110,7 @@ npm install
 npm run dev
 
 php artisan serve
-````
+```
 
 ---
 
