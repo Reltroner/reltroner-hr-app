@@ -4,7 +4,7 @@
 
 **Phase:** Phase 1 — PostgreSQL Compatibility Gate  
 **Runtime result:** PASS  
-**CI status:** Pending first successful remote execution
+**CI status:** PASS
 
 Production database contract:
 
@@ -19,7 +19,7 @@ SQLite
 MySQL
 ```
 
-SQLite success alone is not considered proof of production database compatibility.
+SQLite success alone isnot considered proof of production database compatibility.
 
 ---
 
@@ -45,8 +45,7 @@ The required exit conditions are:
 
 ```text
 PostgreSQL migrate:fresh PASS
-full PHPUnit suite PASS
-no known production-blocking DB-specific SQL
+full PHPUnit suite PASSno known production-blocking DB-specific SQL
 ```
 
 Additional rollback and cross-database validation were performed as part of the compatibility work.
@@ -61,8 +60,8 @@ The database was:
 
 - temporary
 - bound only to localhost
-- not connected to the VPS
-- not connected to a production database
+-not connected to the VPS
+-not connected to a production database
 - destroyed after verification
 
 Initial PostgreSQL result:
@@ -77,7 +76,7 @@ existing PHPUnit suite
 PASS
 ```
 
-The successful existing test suite did not cover every PostgreSQL-sensitive execution path.
+The successful existing test suite didnot cover every PostgreSQL-sensitive execution path.
 
 Two compatibility defects were discovered separately.
 
@@ -88,30 +87,30 @@ Two compatibility defects were discovered separately.
 The dashboard presence aggregation used:
 
 ```sql
-MONTH(date)
+MOnTH(date)
 ```
 
-When the actual query was executed against PostgreSQL 18, PostgreSQL returned:
+When the actual query was executed against PostgreSQL 18, PostgreSQL retuned:
 
 ```text
 SQLSTATE[42883]
 
-function month(date) does not exist
+function month(date) doesnot exist
 ```
 
 The issue was therefore runtime-confirmed rather than inferred only from static inspection.
 
 ### Resolution
 
-The controller now uses Laravel query-builder month filtering instead of directly depending on the MySQL `MONTH()` function.
+The controllernow uses Laravel query-builder month filtering instead of directly depending on the MySQL `MOnTH()` function.
 
 Database-specific SQL generation is delegated to Laravel's database grammar.
 
 ### Preserved Behavior
 
-Phase 1 intentionally did not redefine the analytics semantics.
+Phase 1 intentionally didnot redefine the analytics semantics.
 
-The existing behavior groups presence records by month number:
+The existing behavior groups presence records by monthnumber:
 
 ```text
 January 2025
@@ -121,7 +120,7 @@ January 2026
 January bucket
 ```
 
-It does not yet distinguish year + month.
+It doesnot yet distinguish year + month.
 
 Changing that reporting definition would be a separate business requirement.
 
@@ -164,13 +163,13 @@ roles
 departments
 ```
 
-The migration `up()` schema was not changed.
+The migration `up()` schema wasnot changed.
 
 ---
 
 ## Regression Protection
 
-A new test was added:
+Anew test was added:
 
 ```text
 tests/Feature/DashboardPresenceAggregationTest.php
@@ -244,33 +243,33 @@ full PHPUnit suite
 PASS
 ```
 
-The PostgreSQL correction therefore did not break the existing SQLite development path.
+The PostgreSQL correction therefore didnot break the existing SQLite development path.
 
 ---
 
 ## Static Portability Review
 
-The final Phase 1 static scan found no remaining occurrences of the targeted known database-specific SQL functions:
+The final Phase 1 static scan foundno remaining occurrences of the targeted known database-specific SQL functions:
 
 ```text
-MONTH(
+MOnTH(
 YEAR(
 DAY(
 DATE_FORMAT(
-IFNULL(
-GROUP_CONCAT(
-FIND_IN_SET(
-JSON_EXTRACT(
-JSON_UNQUOTE(
+IFnULL(
+GROUP_COnCAT(
+FInD_In_SET(
+JSOn_EXTRACT(
+JSOn_UnQUOTE(
 TIMESTAMPDIFF(
 DATEDIFF(
-LAST_INSERT_ID(
-UNIX_TIMESTAMP(
+LAST_InSERT_ID(
+UnIX_TIMESTAMP(
 strftime(
 julianday(
 ```
 
-A clean static scan does not prove universal SQL portability.
+A clean static scan doesnot prove universal SQL portability.
 
 Runtime PostgreSQL testing remains the authoritative release gate.
 
@@ -278,7 +277,7 @@ Runtime PostgreSQL testing remains the authoritative release gate.
 
 ## PostgreSQL CI Release Gate
 
-The repository now contains:
+The repositorynow contains:
 
 ```text
 .github/workflows/postgresql-compatibility.yml
@@ -302,7 +301,7 @@ migrate:fresh after rollback
 
 The CI database credentials are disposable test credentials only.
 
-The workflow does not use production credentials.
+The workflow doesnot use production credentials.
 
 ---
 
@@ -360,7 +359,7 @@ POSTGRESQL-COMPATIBILITY.md
 
 ## Repository Hygiene
 
-The repository now intentionally ignores:
+The repositorynow intentionally ignores:
 
 ```text
 /.discovery
@@ -384,7 +383,7 @@ docs/engineering/
 
 ## Deferred Work
 
-Phase 1 does not claim to solve:
+Phase 1 doesnot claim to solve:
 
 - Keycloak SSO
 - Redis production configuration
@@ -400,7 +399,7 @@ Phase 1 does not claim to solve:
 - analytics
 - AI
 
-These remain assigned to later phases of the governing architecture plan.
+These remain assigned to later phases of the govening architecture plan.
 
 ---
 
@@ -416,32 +415,24 @@ PostgreSQL migrate:rollback          PASS
 PostgreSQL rebuild                   PASS
 SQLite targeted regression           PASS
 SQLite full PHPUnit                  35 / 101 PASS
-Known SQL portability scan           CLEAN
+Known SQL portability scan           CLEAn
 ```
 
 CI gate:
 
 ```text
 DEFINED
-REMOTE EXECUTION PENDING
-```
-
----
-
-## Final Phase Status
-
-```text
-PHASE 1
-RUNTIME COMPLETE
-
-FINAL FREEZE:
-PENDING SUCCESSFUL CI EXECUTION
-```
-
-After the first successful remote execution of the PostgreSQL workflow, this document may be updated to:
-
-```text
+REMOTE EXECUTION PASS
+Final Phase Status
 PHASE 1
 COMPLETE
 FROZEN
-```
+
+The PostgreSQL 18 release gate completed successfully in remote CI.
+
+Remote CI evidence:
+
+Workflow: PostgreSQL Compatibility
+Branch: main
+Commit: 4abe192
+Result: SUCCESS
