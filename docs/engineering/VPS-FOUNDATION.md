@@ -2,9 +2,9 @@
 
 ## Status
 
-**Phase:** Phase 2 — VPS Foundation  
-**Status:** COMPLETE / FROZEN  
-**Target:** Reltroner HRM + Auth Platform  
+**Phase:** Phase 2 — VPS Foundation
+**Status:** COMPLETE / FROZEN
+**Target:** Reltroner HRM + Auth Platform
 
 This document records the verified infrastructure baseline established during Phase 2. All configurations documented herein reflect the hardened, production-capable single-VPS host prior to application deployment and container orchestration.
 
