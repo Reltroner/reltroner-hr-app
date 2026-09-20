@@ -27,7 +27,7 @@ There is no public firewall rule for PostgreSQL.
 Two application databases are provisioned:
 
 | Database | Application Role |
-|---|---|
+| --- | --- |
 | `keycloak_db` | `keycloak_app` |
 | `hrm_db` | `hrm_app` |
 
@@ -42,7 +42,7 @@ Application roles are login roles without:
 The application access contract is:
 
 | Role | Database | Expected |
-|---|---|---|
+| --- | --- | --- |
 | `keycloak_app` | `keycloak_db` | ALLOW |
 | `keycloak_app` | `hrm_db` | DENY |
 | `hrm_app` | `hrm_db` | ALLOW |
@@ -69,7 +69,7 @@ Local PostgreSQL backup root:
 
 ```text
 /opt/reltroner/backups/postgresql
-````
+```
 
 Backup directories and artifacts are root-owned and inaccessible to ordinary application users.
 
@@ -195,8 +195,8 @@ A verified automated-backup generation was packaged and copied from the VPS to a
 
 Transfer integrity was verified by comparing SHA-256 hashes between:
 
-* the VPS transport artifact
-* the workstation copy
+- the VPS transport artifact
+- the workstation copy
 
 Result:
 
@@ -218,31 +218,31 @@ A VPS reboot was performed after PostgreSQL and backup scheduling were configure
 
 After reboot, verification confirmed:
 
-* PostgreSQL 18 cluster online
-* PostgreSQL version unchanged
-* localhost-only PostgreSQL listener
-* SCRAM-SHA-256 still active
-* HBA rules parsed without errors
-* database ownership preserved
-* application roles preserved
-* valid application connections still accepted
-* cross-database connections still rejected
-* backup timer enabled and active
-* backup service successfully generated a new backup
-* backup SHA-256 validation passed
+- PostgreSQL 18 cluster online
+- PostgreSQL version unchanged
+- localhost-only PostgreSQL listener
+- SCRAM-SHA-256 still active
+- HBA rules parsed without errors
+- database ownership preserved
+- application roles preserved
+- valid application connections still accepted
+- cross-database connections still rejected
+- backup timer enabled and active
+- backup service successfully generated a new backup
+- backup SHA-256 validation passed
 
 ## External Port Verification
 
 External verification after reboot produced the intended boundary:
 
-| Port | Purpose                 | External State       |
-| ---- | ----------------------- | -------------------- |
-| 22   | SSH                     | OPEN                 |
-| 80   | HTTP / Nginx            | OPEN                 |
-| 443  | HTTPS                   | CLOSED at this phase |
-| 5432 | PostgreSQL              | CLOSED               |
-| 6379 | Redis                   | CLOSED               |
-| 8080 | internal/future service | CLOSED               |
+| Port | Purpose | External State |
+| --- | --- | --- |
+| 22 | SSH | OPEN |
+| 80 | HTTP / Nginx | OPEN |
+| 443 | HTTPS | CLOSED at this phase |
+| 5432 | PostgreSQL | CLOSED |
+| 6379 | Redis | CLOSED |
+| 8080 | internal/future service | CLOSED |
 
 PostgreSQL is therefore not publicly reachable.
 
@@ -252,17 +252,17 @@ HTTPS configuration belongs to a later deployment phase and was intentionally no
 
 The following controls are intentional:
 
-* PostgreSQL is not publicly exposed.
-* Application roles are not PostgreSQL superusers.
-* Keycloak and HRM use separate databases.
-* Keycloak and HRM use separate database roles.
-* Cross-database application access is denied.
-* Application passwords are not stored in this document.
-* Database backups are root-only.
-* PostgreSQL globals are treated as sensitive recovery material.
-* Database backups are never stored in Git.
-* Backup recovery has been tested rather than assumed.
-* At least one verified backup copy exists outside the VPS.
+- PostgreSQL is not publicly exposed.
+- Application roles are not PostgreSQL superusers.
+- Keycloak and HRM use separate databases.
+- Keycloak and HRM use separate database roles.
+- Cross-database application access is denied.
+- Application passwords are not stored in this document.
+- Database backups are root-only.
+- PostgreSQL globals are treated as sensitive recovery material.
+- Database backups are never stored in Git.
+- Backup recovery has been tested rather than assumed.
+- At least one verified backup copy exists outside the VPS.
 
 ## Known Operational Limitation
 
@@ -274,21 +274,21 @@ This limitation does not change the verified local backup, restore, isolation, o
 
 ## Phase 3 Exit Criteria
 
-| Requirement                             | Result |
-| --------------------------------------- | ------ |
-| PostgreSQL 18 installed                 | PASS   |
-| Keycloak database isolated              | PASS   |
-| HRM database isolated                   | PASS   |
-| Application roles restricted            | PASS   |
-| Public PostgreSQL exposure blocked      | PASS   |
-| Backup process configured               | PASS   |
-| Backup integrity tested                 | PASS   |
-| Restore tested                          | PASS   |
-| Object ownership tested after restore   | PASS   |
-| Scheduled backup configured             | PASS   |
-| Scheduled backup survives reboot        | PASS   |
-| Off-VPS recovery copy demonstrated      | PASS   |
-| Post-reboot database isolation verified | PASS   |
+| Requirement | Result |
+| --- | --- |
+| PostgreSQL 18 installed | PASS |
+| Keycloak database isolated | PASS |
+| HRM database isolated | PASS |
+| Application roles restricted | PASS |
+| Public PostgreSQL exposure blocked | PASS |
+| Backup process configured | PASS |
+| Backup integrity tested | PASS |
+| Restore tested | PASS |
+| Object ownership tested after restore | PASS |
+| Scheduled backup configured | PASS |
+| Scheduled backup survives reboot | PASS |
+| Off-VPS recovery copy demonstrated | PASS |
+| Post-reboot database isolation verified | PASS |
 
 ## Freeze Rule
 
