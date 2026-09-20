@@ -1,0 +1,99 @@
+name: PostgreSQL Compatibility
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  postgresql:
+    name: Laravel on PostgreSQL 18
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: reltroner_hrm_test
+          POSTGRES_USER: reltroner_test
+          POSTGRES_PASSWORD: reltroner_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U reltroner_test -d reltroner_hrm_test"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
+    env:
+      APP_ENV: testing
+      APP_DEBUG: false
+
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_DATABASE: reltroner_hrm_test
+      DB_USERNAME: reltroner_test
+      DB_PASSWORD: reltroner_test
+
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, pdo, pdo_pgsql, pgsql
+          coverage: none
+
+      - name: Generate ephemeral application key
+        run: |
+          echo "APP_KEY=base64:$(php -r 'echo base64_encode(random_bytes(32));')" >> "$GITHUB_ENV"
+
+      - name: Validate Composer
+        run: composer validate --no-check-publish
+
+      - name: Install PHP dependencies
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Verify PostgreSQL connection and version
+        run: |
+          php -r '
+          $dsn = sprintf(
+              "pgsql:host=%s;port=%s;dbname=%s",
+              getenv("DB_HOST"),
+              getenv("DB_PORT"),
+              getenv("DB_DATABASE")
+          );
+
+          $pdo = new PDO(
+              $dsn,
+              getenv("DB_USERNAME"),
+              getenv("DB_PASSWORD"),
+              [
+                  PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+              ]
+          );
+
+          echo $pdo->query("SELECT version()")->fetchColumn(), PHP_EOL;
+          '
+
+      - name: Migrate fresh
+        run: php artisan migrate:fresh --force --no-interaction
+
+      - name: Run PostgreSQL portability regression
+        run: php artisan test --filter DashboardPresenceAggregationTest
+
+      - name: Run full PHPUnit suite
+        run: php artisan test
+
+      - name: Verify full rollback
+        run: php artisan migrate:rollback --force --no-interaction
+
+      - name: Verify rebuild after rollback
+        run: php artisan migrate:fresh --force --no-interaction

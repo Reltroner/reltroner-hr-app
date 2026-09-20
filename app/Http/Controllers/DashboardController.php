@@ -24,22 +24,24 @@ class DashboardController extends Controller
     public function presence()
     {
         $statuses = ['present', 'absent', 'late', 'leave'];
-        $response = [];
 
-        foreach ($statuses as $status) {
-            $rawData = Presence::where('status', $status)
-                ->selectRaw('MONTH(date) as month, COUNT(*) as total')
-                ->groupBy('month')
-                ->orderBy('month')
-                ->get();
+        $response = array_fill_keys(
+            $statuses,
+            array_fill(0, 12, 0)
+        );
 
-            // Inisialisasi 12 bulan (Jan–Dec) dengan 0
-            $data = array_fill(0, 12, 0);
-            foreach ($rawData as $item) {
-                $data[$item->month - 1] = $item->total;
+        for ($month = 1; $month <= 12; $month++) {
+            $counts = Presence::query()
+                ->select('status')
+                ->selectRaw('COUNT(*) as total')
+                ->whereIn('status', $statuses)
+                ->whereMonth('date', $month)
+                ->groupBy('status')
+                ->pluck('total', 'status');
+
+            foreach ($counts as $status => $total) {
+                $response[$status][$month - 1] = (int) $total;
             }
-
-            $response[$status] = $data;
         }
 
         return response()->json($response);
