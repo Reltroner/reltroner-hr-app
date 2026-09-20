@@ -415,7 +415,7 @@ PostgreSQL migrate:rollback          PASS
 PostgreSQL rebuild                   PASS
 SQLite targeted regression           PASS
 SQLite full PHPUnit                  35 / 101 PASS
-Known SQL portability scan           CLEAn
+Known SQL portability scan           CLEAN
 ```
 
 CI gate:
@@ -423,16 +423,30 @@ CI gate:
 ```text
 DEFINED
 REMOTE EXECUTION PASS
-Final Phase Status
+```
+
+---
+
+## Final Phase Status
+
+```text
 PHASE 1
 COMPLETE
 FROZEN
+```
 
 The PostgreSQL 18 release gate completed successfully in remote CI.
 
 Remote CI evidence:
 
+```text
+Initial compatibility commit: 4abe192
+Initial CI result: SUCCESS
+
+Freeze commit: 05d1379
+Freeze CI result: SUCCESS
+
 Workflow: PostgreSQL Compatibility
 Branch: main
-Commit: 4abe192
-Result: SUCCESS
+Database: PostgreSQL 18
+```
