@@ -2,8 +2,11 @@
 
 namespace App\Providers;
 
-use Illuminate\Support\Facades\Vite;
+use Illuminate\Queue\Events\JobFailed;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -30,7 +33,20 @@ class AppServiceProvider extends ServiceProvider
         }
 
         if (env('APP_ENV') === 'production') {
-        URL::forceScheme('https');
+            URL::forceScheme('https');
         }
+
+        Queue::failing(function (JobFailed $event) {
+            Log::error('Queue job failed', [
+                'connection' => $event->connectionName,
+                'queue' => $event->job->getQueue(),
+                'job' => $event->job->resolveName(),
+                'job_id' => $event->job->getJobId(),
+                'attempts' => $event->job->attempts(),
+                'exception_class' => get_class($event->exception),
+                'exception_file' => $event->exception->getFile(),
+                'exception_line' => $event->exception->getLine(),
+            ]);
+        });
     }
 }

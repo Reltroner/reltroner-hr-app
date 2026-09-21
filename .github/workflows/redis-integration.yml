@@ -1,0 +1,121 @@
+name: Redis Infrastructure Integration
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  redis-integration:
+    name: Laravel on Redis 7 & PostgreSQL 18
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: reltroner_hrm_test
+          POSTGRES_USER: reltroner_test
+          POSTGRES_PASSWORD: ci_pgsql_test_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U reltroner_test -d reltroner_hrm_test"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
+    env:
+      APP_ENV: testing
+      APP_DEBUG: false
+
+      RUN_REDIS_INTEGRATION: "true"
+
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_DATABASE: reltroner_hrm_test
+      DB_USERNAME: reltroner_test
+      DB_PASSWORD: ci_pgsql_test_password
+
+      CACHE_STORE: redis
+
+      SESSION_DRIVER: redis
+      SESSION_CONNECTION: session
+
+      QUEUE_CONNECTION: redis
+      QUEUE_FAILED_DRIVER: database-uuids
+
+      REDIS_CLIENT: phpredis
+      REDIS_HOST: 127.0.0.1
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ci_redis_test_auth_token
+      REDIS_DB: 0
+      REDIS_CACHE_DB: 1
+      REDIS_QUEUE_DB: 2
+      REDIS_SESSION_DB: 3
+      REDIS_CACHE_CONNECTION: cache
+      REDIS_QUEUE_CONNECTION: queue
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Start authenticated Redis container
+        run: |
+          docker run -d \
+            --name redis-test \
+            -p 6379:6379 \
+            redis:7-alpine \
+            redis-server --requirepass "ci_redis_test_auth_token" --appendonly no
+
+      - name: Wait for authenticated Redis readiness
+        run: |
+          echo "Waiting for Redis to accept authenticated ping..."
+          for i in {1..30}; do
+            if docker exec redis-test redis-cli -a "ci_redis_test_auth_token" ping 2>/dev/null | grep -q PONG; then
+              echo "Redis is ready and authenticated successfully!"
+              exit 0
+            fi
+            echo "Waiting for Redis (attempt $i/30)..."
+            sleep 1
+          done
+          echo "Redis failed to become ready in time"
+          exit 1
+
+      - name: Verify Redis authentication enforcement
+        run: |
+          UNAUTH_RESPONSE=$(docker exec redis-test redis-cli ping 2>&1 || true)
+          echo "Unauthenticated ping response: $UNAUTH_RESPONSE"
+          if echo "$UNAUTH_RESPONSE" | grep -q "NOAUTH"; then
+            echo "Redis auth requirement confirmed (NOAUTH returned)."
+          else
+            echo "Expected NOAUTH response from unauthenticated ping!"
+            exit 1
+          fi
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, pdo, pdo_pgsql, pgsql, redis, pcntl
+          coverage: none
+
+      - name: Generate ephemeral application key
+        run: |
+          echo "APP_KEY=base64:$(php -r 'echo base64_encode(random_bytes(32));')" >> "$GITHUB_ENV"
+
+      - name: Validate Composer
+        run: composer validate --no-check-publish
+
+      - name: Install PHP dependencies
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Run database migrations
+        run: php artisan migrate:fresh --force --no-interaction
+
+      - name: Run targeted Redis integration tests
+        run: vendor/bin/phpunit --filter RedisInfrastructureIntegrationTest --fail-on-skipped
+
+      - name: Run full PHPUnit suite with Redis integration active
+        run: php artisan test
