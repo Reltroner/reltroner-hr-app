@@ -2,20 +2,22 @@
 
 ## Status
 
-Phase 3 — COMPLETE / FROZEN
+**Phase 3 — COMPLETE / FROZEN**
 
-Production database foundation for Reltroner HRM and Keycloak has been deployed, hardened, isolated, backed up, restored, reboot-tested, and externally verified.
+The production database foundation for Reltroner HRM and Keycloak has been deployed, hardened, isolated, backed up, restore-tested, reboot-tested, and externally verified.
+
+The restore claim in this document refers to a real recovery rehearsal using manually generated PostgreSQL custom-format dumps. Automated scheduled backup generations were separately verified through checksums and PostgreSQL archive parsing; they were **not** fully restored during Phase 3.
 
 ## Production Baseline
 
-- PostgreSQL: 18.6
-- Operating system: Ubuntu 24.04 LTS
+- PostgreSQL: **18.6**
+- Operating system: **Ubuntu 24.04 LTS**
 - PostgreSQL cluster: `18/main`
 - Cluster port: `5432`
 - Listener:
   - `127.0.0.1:5432`
   - `[::1]:5432`
-- Public PostgreSQL exposure: disabled
+- Public PostgreSQL exposure: **disabled**
 - Password encryption: `scram-sha-256`
 
 PostgreSQL is intentionally bound only to localhost.
@@ -100,7 +102,7 @@ The backup process:
 2. exports PostgreSQL globals
 3. creates a custom-format dump of `keycloak_db`
 4. creates a custom-format dump of `hrm_db`
-5. validates both dump archives with `pg_restore`
+5. validates both dump archives with `pg_restore -l`
 6. generates SHA-256 checksums using relative filenames
 7. validates the checksum manifest before publication
 8. atomically moves the temporary generation into its final timestamped directory
@@ -125,7 +127,7 @@ PrivateTmp=true
 NoNewPrivileges=true
 ```
 
-The timer runs daily around:
+The timer is scheduled daily at approximately:
 
 ```text
 03:15 UTC
@@ -144,17 +146,17 @@ and was verified to survive a VPS reboot.
 
 ## Restore Validation
 
-A real restore rehearsal was completed.
+A real database restore rehearsal was completed using manually generated PostgreSQL custom-format dumps created specifically for the recovery test.
 
 The validation procedure included:
 
 1. creating temporary source probe data
 2. generating PostgreSQL custom-format dumps
 3. creating isolated temporary recovery databases
-4. restoring both backups
+4. restoring both dumps into the recovery databases
 5. verifying recovered data
 6. verifying restored table ownership
-7. removing recovery databases
+7. removing the recovery databases
 8. removing temporary source probe data
 
 Results:
@@ -167,7 +169,9 @@ Recovered ownership: PASS
 Cleanup: PASS
 ```
 
-A later restore test was also performed against the automated backup path.
+This restore rehearsal proves that the database backup format and recovery procedure were functional.
+
+It did **not** constitute a full restore of a scheduled automated backup generation. Automated backup generations were validated separately for integrity as documented below.
 
 ## Backup Integrity
 
@@ -185,9 +189,15 @@ keycloak_db.dump: OK
 hrm_db.dump: OK
 ```
 
-Both database archives also passed PostgreSQL archive parsing using `pg_restore`.
+Both database archives also passed PostgreSQL archive parsing using:
+
+```text
+pg_restore -l
+```
 
 Backup generation and integrity validation continued to pass after a VPS reboot.
+
+These checks verify that scheduled backup artifacts were created successfully, matched their checksum manifest, and were readable as PostgreSQL custom-format archives.
 
 ## Off-VPS Recovery Copy
 
@@ -241,12 +251,12 @@ External verification after reboot produced the intended boundary:
 | 80 | HTTP / Nginx | OPEN |
 | 443 | HTTPS | CLOSED at this phase |
 | 5432 | PostgreSQL | CLOSED |
-| 6379 | Redis | CLOSED |
+| 6379 | Redis / future runtime service at this phase | CLOSED |
 | 8080 | internal/future service | CLOSED |
 
-PostgreSQL is therefore not publicly reachable.
+PostgreSQL was therefore not publicly reachable.
 
-HTTPS configuration belongs to a later deployment phase and was intentionally not introduced during Phase 3.
+HTTPS configuration belonged to a later deployment phase and was intentionally not introduced during Phase 3.
 
 ## Security Decisions
 
@@ -261,16 +271,21 @@ The following controls are intentional:
 - Database backups are root-only.
 - PostgreSQL globals are treated as sensitive recovery material.
 - Database backups are never stored in Git.
-- Backup recovery has been tested rather than assumed.
+- Database recovery was tested through a real restore rehearsal rather than assumed.
+- Automated backup artifacts were independently integrity-checked.
 - At least one verified backup copy exists outside the VPS.
 
-## Known Operational Limitation
+## Known Operational Limitations
 
 Off-VPS backup transfer is currently manual.
 
 The architecture requires off-VPS recovery capability, and that capability has been demonstrated, but future production hardening should automate external backup replication and retention using dedicated external backup storage.
 
-This limitation does not change the verified local backup, restore, isolation, or public-exposure controls established during Phase 3.
+The scheduled automated backup generation itself was not fully restored during Phase 3. Its integrity was validated through SHA-256 verification and `pg_restore -l` archive parsing, while the full data restore rehearsal used manually generated custom-format dumps.
+
+The PostgreSQL globals recovery path was not rehearsed as a complete fresh-cluster restoration during Phase 3.
+
+These limitations do not change the verified local backup generation, manual restore rehearsal, database isolation, or public-exposure controls established during Phase 3.
 
 ## Phase 3 Exit Criteria
 
@@ -282,8 +297,8 @@ This limitation does not change the verified local backup, restore, isolation, o
 | Application roles restricted | PASS |
 | Public PostgreSQL exposure blocked | PASS |
 | Backup process configured | PASS |
-| Backup integrity tested | PASS |
-| Restore tested | PASS |
+| Automated backup integrity tested | PASS |
+| Database restore rehearsal completed | PASS |
 | Object ownership tested after restore | PASS |
 | Scheduled backup configured | PASS |
 | Scheduled backup survives reboot | PASS |
@@ -294,6 +309,13 @@ This limitation does not change the verified local backup, restore, isolation, o
 
 Phase 3 is frozen.
 
-Changes to PostgreSQL networking, HBA rules, application-role privileges, database ownership, backup permissions, backup scheduling, or retention behavior must be treated as production infrastructure changes and require explicit verification before deployment.
+Changes to PostgreSQL networking, HBA rules, application-role privileges, database ownership, backup permissions, backup scheduling, retention behavior, or recovery procedures must be treated as production infrastructure changes and require explicit verification before deployment.
 
 The next architecture phase must not weaken the database isolation established here.
+
+## Final Phase Result
+
+```text
+PHASE 3 — POSTGRESQL PRODUCTION FOUNDATION
+COMPLETE / FROZEN
+```
