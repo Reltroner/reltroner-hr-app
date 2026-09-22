@@ -50,19 +50,15 @@ class LinkExternalIdentity
                 throw IdentityLinkException::trustKeyConflict();
             }
 
-            try {
-                return ExternalIdentity::create([
-                    'user_id' => $userId,
-                    'provider' => 'keycloak',
-                    'issuer' => $issuer,
-                    'subject' => $subject,
-                    'email_at_link' => null,
-                    'linked_at' => now(),
-                    'last_login_at' => null,
-                ]);
-            } catch (QueryException) {
-                throw IdentityLinkException::trustKeyConflict();
-            }
+            return ExternalIdentity::create([
+                'user_id' => $userId,
+                'provider' => 'keycloak',
+                'issuer' => $issuer,
+                'subject' => $subject,
+                'email_at_link' => null,
+                'linked_at' => now(),
+                'last_login_at' => null,
+            ]);
         });
     }
 
