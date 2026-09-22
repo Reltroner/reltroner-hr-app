@@ -4,7 +4,6 @@ namespace App\Modules\Identity\Linking;
 
 use App\Models\User;
 use App\Modules\Identity\Models\ExternalIdentity;
-use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 
 class LinkExternalIdentity
