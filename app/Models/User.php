@@ -2,8 +2,10 @@
 
 namespace App\Models;
 
+use App\Modules\Identity\Models\ExternalIdentity;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Str;
@@ -81,6 +83,16 @@ class User extends Authenticatable // implement MustVerifyEmail if you require e
     public function employee()
     {
         return $this->belongsTo(Employee::class, 'employee_id', 'id');
+    }
+
+    /**
+     * Relationship: User hasMany ExternalIdentity
+     *
+     * @return HasMany
+     */
+    public function externalIdentities(): HasMany
+    {
+        return $this->hasMany(ExternalIdentity::class, 'user_id', 'id');
     }
 
     /**
