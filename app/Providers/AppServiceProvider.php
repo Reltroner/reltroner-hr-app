@@ -2,7 +2,14 @@
 
 namespace App\Providers;
 
+use App\Models\User;
+use App\Modules\Identity\Events\IdentityLinkAuditEvent;
+use App\Modules\Identity\Listeners\LogIdentityLinkAudit;
+use App\Modules\Identity\Models\ExternalIdentity;
+use App\Modules\Identity\Observers\ExternalIdentityAuditObserver;
+use App\Modules\Identity\Observers\UserIdentityLinkAuditObserver;
 use Illuminate\Queue\Events\JobFailed;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\URL;
@@ -48,5 +55,13 @@ class AppServiceProvider extends ServiceProvider
                 'exception_line' => $event->exception->getLine(),
             ]);
         });
+
+        ExternalIdentity::observe(ExternalIdentityAuditObserver::class);
+        User::observe(UserIdentityLinkAuditObserver::class);
+
+        Event::listen(
+            IdentityLinkAuditEvent::class,
+            LogIdentityLinkAudit::class
+        );
     }
 }
