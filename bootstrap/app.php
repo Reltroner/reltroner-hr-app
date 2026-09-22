@@ -17,7 +17,10 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
 
         $middleware->alias([
-            'role' => \App\Http\Middleware\CheckRole::class,]);
+            'role' => \App\Http\Middleware\CheckRole::class,
+            'legacy.login' => \App\Http\Middleware\RequireLegacyLoginEnabled::class,
+            'legacy.registration' => \App\Http\Middleware\RequireLegacyRegistrationEnabled::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //
