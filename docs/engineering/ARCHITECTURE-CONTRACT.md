@@ -200,7 +200,7 @@ The LLM must not become the system of record.
 
 The current repository is an existing Laravel application with:
 
-- Laravel 12
+- Laravel 13
 
 - Blade-based server rendering
 
