@@ -177,7 +177,7 @@ class OidcCallbackTest extends TestCase
             ],
         ])->get('/auth/keycloak/callback?state=replay-state&code=test-code');
 
-        $firstResponse->assertStatus(503);
+        $firstResponse->assertRedirect(route('dashboard', absolute: false));
 
         // Replay attempt with same state
         $secondResponse = $this->get('/auth/keycloak/callback?state=replay-state&code=test-code');
@@ -245,9 +245,9 @@ class OidcCallbackTest extends TestCase
         $this->assertArrayNotHasKey('token-fail-state', $stored);
     }
 
-    public function test_successful_crypto_flow_still_assert_guest(): void
+    public function test_approved_oidc_callback_authenticates_expected_linked_user(): void
     {
-        $this->createApprovedExternalIdentity();
+        $user = $this->createApprovedExternalIdentity();
         $tx = $this->createStoredTransaction('success-state', 'valid-nonce');
         $idToken = $this->buildIdToken(['nonce' => 'valid-nonce']);
 
@@ -262,11 +262,11 @@ class OidcCallbackTest extends TestCase
             ],
         ])->get('/auth/keycloak/callback?state=success-state&code=test-code');
 
-        $this->assertGuest();
-        $response->assertStatus(503);
+        $this->assertAuthenticatedAs($user);
+        $response->assertRedirect(route('dashboard', absolute: false));
     }
 
-    public function test_successful_crypto_flow_returns_503(): void
+    public function test_approved_oidc_callback_redirects_to_dashboard(): void
     {
         $this->createApprovedExternalIdentity();
         $tx = $this->createStoredTransaction('sso-state', 'valid-nonce');
@@ -283,8 +283,7 @@ class OidcCallbackTest extends TestCase
             ],
         ])->get('/auth/keycloak/callback?state=sso-state&code=test-code');
 
-        $response->assertStatus(503);
-        $response->assertSee('SSO login is not yet available.');
+        $response->assertRedirect(route('dashboard', absolute: false));
     }
 
     public function test_valid_cryptographic_identity_with_no_external_identity_returns_403(): void
@@ -305,6 +304,7 @@ class OidcCallbackTest extends TestCase
 
         $response->assertStatus(403);
         $response->assertSee('Access denied.');
+        $this->assertGuest();
     }
 
     public function test_valid_cryptographic_identity_with_matching_user_email_but_no_external_identity_returns_403(): void
@@ -331,6 +331,7 @@ class OidcCallbackTest extends TestCase
 
         $response->assertStatus(403);
         $this->assertSame(0, ExternalIdentity::where('subject', 'unlinked-email-match-sub')->count());
+        $this->assertGuest();
     }
 
     public function test_unlinked_callback_creates_no_user_and_no_external_identity(): void
@@ -355,11 +356,14 @@ class OidcCallbackTest extends TestCase
         $response->assertStatus(403);
         $this->assertSame($userCountBefore, User::count());
         $this->assertSame($identityCountBefore, ExternalIdentity::count());
+        $this->assertGuest();
     }
 
-    public function test_approved_linked_callback_leaves_last_login_at_unchanged(): void
+    public function test_new_approved_oidc_login_updates_exact_link_last_login_at(): void
     {
         $this->createApprovedExternalIdentity();
+        $this->assertNull(ExternalIdentity::first()->last_login_at);
+
         $tx = $this->createStoredTransaction('login-at-state', 'valid-nonce');
         $idToken = $this->buildIdToken(['nonce' => 'valid-nonce']);
 
@@ -374,8 +378,8 @@ class OidcCallbackTest extends TestCase
             ],
         ])->get('/auth/keycloak/callback?state=login-at-state&code=test-code');
 
-        $response->assertStatus(503);
-        $this->assertNull(ExternalIdentity::first()->last_login_at);
+        $response->assertRedirect(route('dashboard', absolute: false));
+        $this->assertNotNull(ExternalIdentity::first()->last_login_at);
     }
 
     public function test_approved_linked_callback_creates_no_employee(): void
@@ -395,8 +399,105 @@ class OidcCallbackTest extends TestCase
             ],
         ])->get('/auth/keycloak/callback?state=employee-check-state&code=test-code');
 
-        $response->assertStatus(503);
+        $response->assertRedirect(route('dashboard', absolute: false));
         $this->assertSame(0, Employee::count());
+    }
+
+    public function test_approved_oidc_login_redirects_to_intended_destination(): void
+    {
+        $user = $this->createApprovedExternalIdentity();
+        $tx = $this->createStoredTransaction('intended-state', 'valid-nonce');
+        $idToken = $this->buildIdToken(['nonce' => 'valid-nonce']);
+
+        Http::fake([
+            'https://auth.reltroner.com/realms/reltroner/protocol/openid-connect/certs' => Http::response(['keys' => [$this->jwk]], 200),
+            'https://auth.reltroner.com/realms/reltroner/protocol/openid-connect/token' => Http::response(['id_token' => $idToken], 200),
+        ]);
+
+        $response = $this->withSession([
+            'url.intended' => '/profile',
+            OidcTransactionStore::SESSION_KEY => [
+                'intended-state' => $tx->toArray(),
+            ],
+        ])->get('/auth/keycloak/callback?state=intended-state&code=test-code');
+
+        $this->assertAuthenticatedAs($user);
+        $response->assertRedirect('/profile');
+        $response->assertSessionMissing('url.intended');
+    }
+
+    public function test_sso_authenticated_user_without_required_hr_role_is_denied_by_active_checkrole(): void
+    {
+        $user = $this->createApprovedExternalIdentity();
+        $this->assertNull($user->role);
+        $this->assertNull($user->employee_id);
+
+        $tx = $this->createStoredTransaction('role-test-state', 'valid-nonce');
+        $idToken = $this->buildIdToken(['nonce' => 'valid-nonce']);
+
+        Http::fake([
+            'https://auth.reltroner.com/realms/reltroner/protocol/openid-connect/certs' => Http::response(['keys' => [$this->jwk]], 200),
+            'https://auth.reltroner.com/realms/reltroner/protocol/openid-connect/token' => Http::response(['id_token' => $idToken], 200),
+        ]);
+
+        $response = $this->withSession([
+            OidcTransactionStore::SESSION_KEY => [
+                'role-test-state' => $tx->toArray(),
+            ],
+        ])->get('/auth/keycloak/callback?state=role-test-state&code=test-code');
+
+        $this->assertAuthenticatedAs($user);
+
+        // Protected HR route requiring Admin,HR Manager with CheckRole ACTIVE
+        $protectedResponse = $this->get('/employees');
+        $protectedResponse->assertStatus(403);
+    }
+
+    public function test_oidc_environment_identity_class_is_never_written_to_session_role(): void
+    {
+        $user = $this->createApprovedExternalIdentity();
+        $tx = $this->createStoredTransaction('role-claim-state', 'valid-nonce');
+        $idToken = $this->buildIdToken(['nonce' => 'valid-nonce']);
+
+        Http::fake([
+            'https://auth.reltroner.com/realms/reltroner/protocol/openid-connect/certs' => Http::response(['keys' => [$this->jwk]], 200),
+            'https://auth.reltroner.com/realms/reltroner/protocol/openid-connect/token' => Http::response(['id_token' => $idToken], 200),
+        ]);
+
+        $response = $this->withSession([
+            OidcTransactionStore::SESSION_KEY => [
+                'role-claim-state' => $tx->toArray(),
+            ],
+        ])->get('/auth/keycloak/callback?state=role-claim-state&code=test-code');
+
+        $this->assertAuthenticatedAs($user);
+        $this->assertNull(session('role'));
+        $this->assertNotSame('production_user', session('role'));
+        $this->assertNotSame('demo_user', session('role'));
+    }
+
+    public function test_different_already_authenticated_user_callback_returns_409_conflict(): void
+    {
+        $userA = User::factory()->create(['email' => 'existing-auth@reltroner.com']);
+        $userB = $this->createApprovedExternalIdentity(subject: 'sub-user-b', email: 'userb@reltroner.com');
+
+        $tx = $this->createStoredTransaction('conflict-state', 'valid-nonce');
+        $idToken = $this->buildIdToken(['nonce' => 'valid-nonce', 'sub' => 'sub-user-b']);
+
+        Http::fake([
+            'https://auth.reltroner.com/realms/reltroner/protocol/openid-connect/certs' => Http::response(['keys' => [$this->jwk]], 200),
+            'https://auth.reltroner.com/realms/reltroner/protocol/openid-connect/token' => Http::response(['id_token' => $idToken], 200),
+        ]);
+
+        $response = $this->actingAs($userA)->withSession([
+            OidcTransactionStore::SESSION_KEY => [
+                'conflict-state' => $tx->toArray(),
+            ],
+        ])->get('/auth/keycloak/callback?state=conflict-state&code=test-code');
+
+        $response->assertStatus(409);
+        $response->assertSee('Authentication session conflict.');
+        $this->assertAuthenticatedAs($userA);
     }
 
     public function test_authenticated_existing_session_receives_callback_without_guest_middleware_bypass(): void
