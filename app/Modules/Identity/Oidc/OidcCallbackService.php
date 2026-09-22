@@ -11,18 +11,19 @@ class OidcCallbackService
     public function __construct(
         protected OidcTransactionStore $transactionStore,
         protected OidcTokenClient $tokenClient,
-        protected IdTokenValidator $idTokenValidator
+        protected IdTokenValidator $idTokenValidator,
+        protected OidcIdentityResolver $identityResolver
     ) {
     }
 
     /**
-     * Process an incoming OIDC callback request and return validated identity.
+     * Process an incoming OIDC callback request and return resolved local identity.
      *
      * @param Request $request
-     * @return ValidatedOidcIdentity
+     * @return ResolvedOidcIdentity
      * @throws OidcCallbackException
      */
-    public function handleCallback(Request $request): ValidatedOidcIdentity
+    public function handleCallback(Request $request): ResolvedOidcIdentity
     {
         // 1. Require state query value to be a scalar non-empty string
         $state = $request->query('state');
@@ -60,7 +61,10 @@ class OidcCallbackService
         $idToken = $this->tokenClient->exchangeCode($code, $transaction->codeVerifier);
 
         // 9-11. Validate header/JWKS/signature, claims, and environment eligibility
-        return $this->idTokenValidator->validate($idToken, $transaction->nonce);
+        $validatedIdentity = $this->idTokenValidator->validate($idToken, $transaction->nonce);
+
+        // 12. Resolve approved local identity
+        return $this->identityResolver->resolve($validatedIdentity);
     }
 
     /**

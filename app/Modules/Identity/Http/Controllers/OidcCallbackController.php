@@ -18,9 +18,9 @@ class OidcCallbackController extends Controller
         try {
             $service->handleCallback($request);
 
-            // Intermediate boundary for Phase 7E:
-            // Identity and claims are cryptographically verified, but local User
-            // linking and session authentication belong to Phase 7F/7G.
+            // Intermediate boundary for Phase 7F:
+            // Approved local identity is resolved, but Laravel session
+            // establishment belongs to Phase 7G.
             return response('SSO login is not yet available.', 503);
         } catch (OidcCallbackException $e) {
             return response($e->getUserFacingMessage(), $e->getStatusCode());
