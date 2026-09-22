@@ -357,16 +357,15 @@ class OidcRedirectTest extends TestCase
         $this->assertSame(url('/auth/keycloak/redirect'), route('oidc.redirect'));
     }
 
-    /**
-     * 22. Prove no callback route is introduced in Phase 7D.
-     */
-    public function test_no_callback_route_is_introduced(): void
+    public function test_oidc_callback_registration_does_not_replace_redirect_route(): void
     {
-        $this->assertFalse(Route::has('oidc.callback'));
-        $this->assertFalse(Route::has('keycloak.callback'));
+        $this->assertTrue(Route::has('oidc.redirect'));
+        $this->assertTrue(Route::has('oidc.callback'));
 
-        $response = $this->get('/auth/keycloak/callback');
-        $response->assertStatus(404);
+        $this->assertNotSame(
+            route('oidc.redirect'),
+            route('oidc.callback')
+        );
     }
 
     /**

@@ -31,5 +31,8 @@ return [
     'scopes' => env('OIDC_SCOPES', 'openid profile email'),
     'transaction_ttl' => (int) env('OIDC_TRANSACTION_TTL', 300),
     'pkce_method' => 'S256',
+    'clock_skew' => (int) env('OIDC_CLOCK_SKEW', 60),
+    'jwks_cache_ttl' => (int) env('OIDC_JWKS_CACHE_TTL', 3600),
+    'http_timeout' => (int) env('OIDC_HTTP_TIMEOUT', 5),
 
 ];
