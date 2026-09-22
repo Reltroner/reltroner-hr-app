@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
+use App\Modules\Identity\Auth\AuthTransitionPolicy;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -14,9 +15,11 @@ class AuthenticatedSessionController extends Controller
     /**
      * Display the login view.
      */
-    public function create(): View
+    public function create(AuthTransitionPolicy $policy): View
     {
-        return view('auth.login');
+        return view('auth.login', [
+            'legacyLoginEnabled' => $policy->legacyLoginEnabled(),
+        ]);
     }
 
     /**
