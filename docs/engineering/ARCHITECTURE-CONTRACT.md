@@ -2,7 +2,7 @@
 
 ## Final Architecture Design & End-to-End Engineering Phases
 
-**Status:** Architecture Baseline for Implementation
+**Status:** Active Architecture Contract — Implementation Baseline + Production Foundation Refinement
 
 **Primary applications:** `auth.reltroner.com`, `hrm.reltroner.com`
 
@@ -20,9 +20,57 @@
 
 **Open-source policy:** Runtime architecture must use open-source components
 
-**Current verified HRM baseline:** 34 tests, 94 assertions, PASS
+**Historical pre-change HRM baseline:** 34 tests, 94 assertions, PASS
 
-**Architecture contract revision:** Phase 6 expanded to the OIDC Dual-Client Boundary & Identity Contract. The final end-to-end production target remains unchanged; this revision clarifies identity/environment boundaries, defense-in-depth requirements, deferred Laravel runtime gates, and acceptance sequencing.
+**Current verified hotfix-candidate baseline:** 313 passed, 5 skipped locally, 923 assertions; PostgreSQL 18 CI PASS; Redis integration CI PASS
+
+**Architecture contract revision:** 2026-09-24 refinement. Phase 6 OIDC boundaries remain intact; Phase 9 is expanded into evidence-driven production subphases, immutable-release path-stability rules, HTTP single-dispatch invariants, runtime observability gates, CI/release evidence, and rollback-safe acceptance. The final end-to-end architecture target and the Production Foundation v1 definition remain unchanged.
+
+
+---
+
+## Revision Boundary — Sequencing May Evolve, Final Target Does Not
+
+This contract separates two things that must not be conflated:
+
+```text
+implementation sequencing / operational safeguards
+        may be refined as evidence is discovered
+
+final architecture / security / business capability target
+        must not be silently reduced
+```
+
+This revision therefore permits changes to:
+
+- engineering order
+- release construction rules
+- production smoke methodology
+- rollback procedures
+- evidence requirements
+- phase subdivision
+- runtime diagnostics
+- CI gates
+
+It does **not** remove or weaken the final target for:
+
+- centralized Keycloak identity
+- PostgreSQL production persistence
+- Redis runtime state
+- Laravel modular-monolith trajectory
+- local HRM business authorization
+- issuer + subject identity linkage
+- production/demo identity separation
+- auditability
+- organization tenancy
+- permission-based RBAC
+- reporting / analytics
+- search
+- permission-aware AI
+- backup / restore capability
+- end-to-end SSO acceptance
+
+Sections 50–54 remain the final acceptance direction. In particular, the **Production Foundation v1 Definition** remains the same target even when intermediate engineering phases are refined.
 
 ---
 
@@ -196,6 +244,43 @@ The LLM must not become the system of record.
 
 ---
 
+
+## 2.7 One browser request must map to one Laravel HTTP lifecycle
+
+For Laravel 13, the public entrypoint must delegate the HTTP lifecycle exactly once.
+
+Canonical production entrypoint:
+
+```php
+/** @var Application $app */
+$app = require_once __DIR__.'/../bootstrap/app.php';
+
+$app->handleRequest(Request::capture());
+```
+
+`Application::handleRequest()` already performs the effective HTTP lifecycle:
+
+```text
+resolve HTTP kernel
+-> handle request
+-> send response
+-> terminate kernel
+```
+
+The public entrypoint must therefore **not** execute a second legacy lifecycle such as:
+
+```text
+$app->make(Kernel::class)
+$kernel->handle(...)->send()
+$kernel->terminate(...)
+```
+
+A duplicate lifecycle can resend content or finalize FastCGI twice, producing symptoms such as `headers already sent`, duplicate side effects, duplicate middleware execution, or misleading framework-level transport errors.
+
+This invariant must remain regression-tested structurally in the repository.
+
+---
+
 # 3. Current HRM Baseline
 
 The current repository is an existing Laravel application with:
@@ -232,21 +317,60 @@ The current repository is an existing Laravel application with:
 
 - authentication flows
 
-The pre-change behavioral checkpoint is:
+The historical pre-change behavioral checkpoint remains:
 
 ```text
-
-Tests:       34 passed
-
-Assertions:  94
-
-Result:      PASS
-
+Tests:       34 passed
+Assertions:  94
+Result:      PASS
 ```
 
-This baseline must remain recorded throughout the migration.
+That checkpoint is retained as migration history, not as the current release count.
 
-A future test count may increase. A reduction in passing baseline behavior must be intentional and explained.
+The current hotfix-candidate verification checkpoint is:
+
+```text
+Laravel:                     13
+Local full suite:            313 passed
+Local skipped Redis tests:   5
+Assertions:                  923
+PostgreSQL 18 CI:            PASS
+Redis integration CI:        PASS
+```
+
+The test count is allowed to increase as architecture coverage increases. A reduction in previously passing behavior must be intentional, reviewed, and explained.
+
+## 3A. Current Implementation State Snapshot — 2026-09-24
+
+This subsection is an implementation snapshot, not a redefinition of the final architecture.
+
+```text
+Active production HRM release:
+3723907bc216aece148241bcf749c3edb0658008
+
+Current main / hotfix candidate:
+80a7b6e06277a0520bfa7372b1d489b9521b2182
+```
+
+Current production-foundation state:
+
+```text
+Phase 9A  Production Deployment Discovery                 PASS / FROZEN
+Phase 9B  PHP + Composer Runtime Foundation               PASS / FROZEN
+Phase 9C  Immutable Release Staging                       PASS / FROZEN
+Phase 9D  Production Environment Foundation               PASS / FROZEN
+Phase 9E  Recovery Point + PostgreSQL Migration           PASS / FROZEN
+Phase 9F  PHP-FPM + Nginx Activation                      PASS / FROZEN
+Phase 9G  HRM TLS + HTTPS Public Cutover                  PASS / FROZEN
+Phase 9H  Queue + Scheduler                               PASS / FROZEN
+Phase 9I  Production Smoke / Runtime Verification         OPEN
+```
+
+Phase 9I discovered a deterministic source-level defect in the production HTTP entrypoint: the Laravel 13 lifecycle was dispatched once through `Application::handleRequest()` and then dispatched a second time through legacy manual `Kernel` handling. The source correction is committed in the current candidate together with a focused regression test.
+
+The candidate release has not yet replaced the active production release. A failed cutover attempt was rolled back to the prior immutable release; post-rollback health remained valid, the database remained `8 migrations / 17 public tables / 0 business rows / 0 failed jobs`, and the candidate release remains inactive until the deployment path-stability problem is fully closed.
+
+No production identity linking, full browser SSO acceptance, or Phase 10 claim is implied by this snapshot.
 
 ---
 
@@ -1983,6 +2107,28 @@ application configuration valid
 
 Avoid exposing sensitive dependency details publicly.
 
+For production acceptance, health is evaluated at multiple boundaries:
+
+```text
+process liveness
+-> dependency readiness
+-> application route health
+-> external HTTPS reachability
+-> post-release runtime stability
+```
+
+Minimum HRM production probes should include:
+
+```text
+GET /up                         -> 200
+GET /login                      -> 200
+GET /                           -> expected redirect contract
+anonymous protected route       -> authentication gate
+frontend build assets            -> 200
+```
+
+Internal readiness checks may additionally prove PostgreSQL, Redis, migration state, queue worker state, scheduler state, and cached configuration. Public health responses must not expose secret material or detailed internal dependency topology.
+
 ---
 
 # 35. Observability
@@ -1990,32 +2136,71 @@ Avoid exposing sensitive dependency details publicly.
 Minimum production observability:
 
 ```text
-
 structured application logs
-
 Nginx access/error logs
-
 Laravel exception logs
-
 Keycloak logs
-
 PostgreSQL logs
-
 queue failure visibility
-
 request correlation ID
-
 disk usage monitoring
-
 memory monitoring
-
 CPU monitoring
-
 backup status
-
 ```
 
-Start lightweight.
+Start lightweight, but acceptance must be evidence-driven.
+
+## 35.1 Acceptance-window log delta
+
+Production smoke tests must distinguish:
+
+```text
+historical log entries
+expected negative-test events
+unexpected new severe events
+```
+
+Do not treat either of these shortcuts as sufficient:
+
+```text
+"there are ERROR lines"        -> therefore production is broken
+"the endpoint returned 200"    -> therefore runtime is clean
+```
+
+Instead:
+
+1. establish a log/time/size baseline immediately before the smoke window;
+2. run a bounded test action;
+3. inspect only the new delta;
+4. classify known expected negative-test events narrowly;
+5. fail on unclassified severe events;
+6. confirm Nginx/PHP-FPM/systemd continuity and application health separately.
+
+Expected negative tests may intentionally generate application error-level audit or rejection events. Such events may be accepted only when they are deterministic, bounded to the exact test action, and do not mask an unrelated failure.
+
+Framework transport errors such as `headers already sent`, duplicate response output, repeated FastCGI finalization, or unexpected response-send exceptions are **not** benign by default. They remain real defects until a source-level invariant proves otherwise.
+
+## 35.2 Secret-safe diagnostics
+
+Diagnostic output must not print:
+
+```text
+.env contents
+runtime secrets
+OIDC state
+OIDC nonce
+PKCE verifier
+client secret
+session cookie value
+access token
+ID token
+TLS private key
+raw authorization code
+raw sensitive application log context
+```
+
+Where diagnostics need classification, prefer safe fingerprints, exception classes, relative source paths, status codes, counts, and explicitly redacted metadata.
 
 ---
 
@@ -2071,55 +2256,88 @@ Required periodic procedure:
 
 # 38. Deployment Filesystem
 
+Canonical HRM layout:
+
 ```text
-
-/opt/reltroner/
-
-├── infra/
-
-│   ├── nginx/
-
-│   ├── keycloak/
-
-│   ├── postgres/
-
-│   ├── redis/
-
-│   └── compose/
-
-│
-
-├── apps/
-
-│   └── hrm/
-
-│       ├── current/
-
-│       ├── releases/
-
-│       └── shared/
-
-│
-
-├── backups/
-
-├── logs/
-
-└── scripts/
-
+/opt/reltroner/apps/hrm/
+├── current -> releases/<active-git-sha>
+├── releases/
+│   ├── <previous-git-sha>/
+│   └── <candidate-git-sha>/
+└── shared/
+    ├── .env
+    └── storage/
 ```
 
-Alternative layouts are valid if they preserve:
+Broader VPS layout may remain:
 
-- ownership clarity
+```text
+/opt/reltroner/
+├── infra/
+├── apps/
+├── backups/
+├── logs/
+└── scripts/
+```
 
-- repeatable deployment
+Required invariants:
 
-- secret isolation
+- `current` is an atomic symlink pointer, not a mutable application directory;
+- each release directory is identified by a known Git SHA;
+- shared environment and persistent storage are outside the release directory;
+- the previously active release is retained as a rollback point;
+- an active or sealed release is never patched manually in place;
+- rollback is performed by switching `current` to a known prior release and restarting affected long-lived runtimes.
 
-- rollback capability
+## 38.1 Candidate, sealed, active, retained lifecycle
 
-- persistent data separation
+A release has explicit states:
+
+```text
+candidate
+  -> final SHA path exists but is not active
+
+sealed
+  -> dependencies, shared wiring, generated caches, metadata,
+     migrations/pre-switch checks, and path-integrity checks PASS
+
+active
+  -> current points to the sealed release
+
+retained
+  -> previous release remains available for rollback
+```
+
+A candidate may be constructed inside its **final SHA path** before activation. Immutability begins when the candidate is sealed for cutover; it does not require building in a temporary pathname that is later renamed.
+
+## 38.2 Relocation-sensitive generated artifacts
+
+Laravel caches and dependency metadata may contain absolute or base-path-derived values. Therefore:
+
+```text
+DO NOT
+build relocation-sensitive artifacts under:
+releases/.staging-*
+then rename the directory
+and assume every generated artifact is relocation-safe
+```
+
+Preferred rule:
+
+```text
+extract source
+-> place candidate at final releases/<git-sha> path
+-> wire shared .env/storage
+-> install/optimize dependencies in final path
+-> build config/route/view caches in final path
+-> verify no stale staging-path references
+-> seal candidate
+-> atomic current switch
+```
+
+If a temporary staging path is used for transport or extraction, any path-sensitive generated artifact created there must be regenerated after the final-path move and before activation.
+
+Recommended pre-switch checks include safe scans for stale `releases/.staging-` references inside generated artifacts such as `bootstrap/cache` and `vendor/composer` where applicable.
 
 ---
 
@@ -2155,135 +2373,180 @@ Do not add Kubernetes.
 
 # 40. CI Pipeline
 
-A release pipeline should perform:
+A production candidate pipeline should perform:
 
 ```text
-
 composer validation
-
 composer install
-
-frontend dependency install
-
-frontend build
-
-lint
-
-static analysis
-
+frontend dependency/build validation where required
+lint / static analysis where configured
 unit tests
-
 feature tests
-
-PostgreSQL migration test
-
-PostgreSQL application test
-
-security/dependency scan
-
-artifact/package preparation
-
+PostgreSQL migration compatibility
+PostgreSQL full application suite
+Redis integration suite for Redis-dependent runtime behavior
+security/dependency scan where configured
+artifact / release metadata preparation
 ```
 
 Minimum production release gate:
 
 ```text
-
-PostgreSQL migration PASS
-
-full test suite PASS
-
+exact Git SHA known
+working tree clean
+PostgreSQL 18 workflow PASS
+full application suite PASS
+required Redis integration workflow PASS
 no unexpected source diff
-
+release rollback target known
 ```
 
 SQLite-only success is not enough.
+
+A local test run is useful development evidence, but GitHub CI remains the release gate when the workflow defines the authoritative PostgreSQL or Redis environment.
 
 ---
 
 # 41. PostgreSQL CI Workflow
 
+The production-compatibility workflow must use PostgreSQL 18 and prove both forward and rollback behavior.
+
+Canonical sequence:
+
 ```text
-
 CI runner
-
-   │
-
-   ├── start PostgreSQL
-
-   ├── create clean hrm_test database
-
-   ├── migrate:fresh
-
-   ├── run test suite
-
-   └── destroy test database
-
+   |
+   +-- start PostgreSQL 18
+   +-- create clean test database
+   +-- verify PostgreSQL connection/version
+   +-- migrate:fresh
+   +-- run known portability regression tests
+   +-- run full application test suite
+   +-- migrate:rollback / rollback acceptance
+   +-- migrate:fresh again
+   +-- confirm rebuild succeeds
+   +-- destroy CI database
 ```
 
+The release gate is not satisfied merely because migrations run once. Rollback/rebuild acceptance protects the repository from migration ordering, foreign-key dependency, and historical compatibility regressions.
+
 CI must never reuse production credentials.
+
+## 41A. Redis Integration CI Workflow
+
+Redis-dependent production behavior must be tested against an authenticated Redis service rather than inferred from mocked or skipped tests.
+
+The integration workflow should verify:
+
+```text
+Redis authentication required
+named Laravel Redis connections resolve
+logical DB separation preserved
+cache operations work
+session persistence works
+queue dispatch works
+worker processing works
+failed job persistence works
+safe structured queue failure logging works
+full suite remains compatible with Redis integration enabled
+```
+
+The production logical database contract remains:
+
+```text
+default   -> DB 0
+cache     -> DB 1
+queue     -> DB 2
+session   -> DB 3
+```
+
+Redis integration tests may be skipped in an ordinary local test run when the explicit integration flag is absent, but the release gate must still have authoritative Redis integration evidence before Production Foundation v1 is frozen.
 
 ---
 
 # 42. Release Artifact
 
-The production deployment should be built from a known Git commit.
+Production deployment is always tied to a known Git commit.
 
-A release should record:
+A release should record at least:
 
 ```text
-
 Git SHA
-
+parent / prior production SHA
+release reason
 release timestamp
-
-migration list
-
-test result
-
+migration state
+PostgreSQL CI result
+Redis integration CI result when required
 dependency lock hashes
-
-frontend build result
-
-deployment operator
-
+frontend build / asset result
+final release path
+activation result
+rollback target
+deployment operator / automation identity
 ```
 
-Production should not be edited manually in-place.
+A production release is not a mutable checkout.
+
+Forbidden:
+
+```text
+editing PHP source directly inside active release
+editing vendor files to fix an application bug
+copying one changed file into current without a new Git SHA
+silently rebuilding only part of active release
+```
+
+Source correction must follow:
+
+```text
+repository change
+-> regression test
+-> commit
+-> CI
+-> new immutable candidate SHA
+-> cutover
+-> production smoke
+```
 
 ---
 
 # 43. Low-Risk Deployment Sequence
 
+Canonical deployment sequence:
+
 ```text
-
-1. backup / verify recovery point
-
-2. fetch immutable release
-
-3. composer install --no-dev
-
-4. build frontend assets
-
-5. verify environment
-
-6. run safe migrations
-
-7. switch release
-
-8. clear/rebuild caches
-
-9. restart PHP / queue workers
-
-10. health check
-
-11. smoke test
-
-12. monitor logs
-
+1.  verify exact source SHA / CI release gates
+2.  backup / verify recovery point
+3.  create candidate in final releases/<git-sha> path
+4.  extract exact source artifact
+5.  wire shared .env and storage
+6.  install production dependencies in final path
+7.  verify/build frontend assets in final path or verify approved prebuilt assets
+8.  build config/routes/views caches in final path
+9.  verify permissions and no stale staging-path references
+10. run internal Laravel/runtime contract checks
+11. run safe PostgreSQL migrations / prove migration no-op when expected
+12. seal candidate metadata and integrity
+13. atomically switch current -> new release
+14. restart PHP-FPM and long-lived queue workers
+15. verify scheduler timer continuity
+16. run public HTTPS health/login/assets/OIDC-initiation smoke
+17. verify database / queue / failed-job invariants
+18. inspect bounded observability delta
+19. if any mandatory gate fails, atomically restore previous current target and restart affected runtimes
+20. if all gates pass, retain prior release as rollback point and freeze the deployment subphase
 ```
 
-Rollback must be planned before migration.
+Important path rule:
+
+> A directory rename after Composer optimization or Laravel cache generation is not assumed to be safe. Build relocation-sensitive generated artifacts only after the release has reached its final SHA path, or rebuild them after relocation before activation.
+
+Queue workers are long-lived and may continue executing code loaded from the prior release until restarted. Therefore every release switch that changes application code must restart or gracefully reload the production worker.
+
+The scheduler timer itself may remain enabled across release switches because each oneshot execution resolves `current`, but timer state and the next execution must be re-verified.
+
+Rollback must be planned before migration and proven possible before a cutover is declared complete.
 
 ---
 
@@ -3048,6 +3311,21 @@ A correctly classified Keycloak identity can authenticate into the expected HRM 
 
 Authentication success must not bypass existing authorization.
 
+### Current Sequencing Note
+
+The Laravel identity foundation may be frozen independently from production account linking. Production linking is an operational trust decision and must not be forced merely to make a browser login test pass.
+
+The permanent rule remains:
+
+```text
+OIDC does not create User
+OIDC does not create Employee
+OIDC does not grant HR role
+OIDC does not infer linkage by email
+```
+
+Controlled mapping is performed only against an existing authoritative local `User` using exact issuer + subject.
+
 ---
 
 ## Phase 8 — Transitional Dual Authentication
@@ -3059,30 +3337,58 @@ Reduce migration risk.
 For a limited migration period:
 
 ```text
-
 SSO primary
-
 legacy login retained behind explicit feature flag
-
 ```
 
 ### Tasks
 
 - add feature flag/environment control
-
 - retain local login only where required
-
 - migrate test/admin accounts
-
-- link known users
-
+- link known users through controlled issuer + subject mapping
 - monitor failed linking
-
 - document rollback
+
+### Production Linking Gate
+
+Controlled production identity linking must not happen until all of the following are known:
+
+```text
+production application plane is stable
+Phase 9I runtime smoke is frozen
+canonical Keycloak issuer is fixed
+exact subject is known
+existing local User is authoritative
+link collision checks pass
+rollback / correction boundary is known
+```
+
+Before creating any production link, explicitly determine whether HRM business/user data is:
+
+```text
+greenfield on this production database
+OR
+owned by an existing legacy/authoritative HRM source outside the VPS
+```
+
+An empty new database does not prove that no legacy authoritative source exists.
+
+Do not create a `User` or `Employee` solely to satisfy the OIDC link command.
+
+Preferred production operation:
+
+```text
+identity:link-keycloak <existing_user_id> <subject> --dry-run
+-> inspect safe fingerprint/result
+-> execute without --dry-run only when approved
+```
 
 ### Exit Criteria
 
-All intended production users can authenticate through Keycloak.
+All intended production users can authenticate through Keycloak using approved links, while the local-login compatibility path remains explicitly controlled until Phase 11 cutover.
+
+The implementation mechanism may be frozen before actual production linking; the operational user-migration criterion remains mandatory before Phase 8 is considered fully exited.
 
 ---
 
@@ -3090,77 +3396,241 @@ All intended production users can authenticate through Keycloak.
 
 ### Goal
 
-Deploy `hrm.reltroner.com` using PostgreSQL and Redis.
-
-### Tasks
-
-- deploy known Git release
-
-- configure production environment
-
-- enforce PostgreSQL
-
-- configure Redis
-
-- configure HTTPS/trusted proxies
-
-- run PostgreSQL migrations
-
-- build assets
-
-- cache production config/routes/views
-
-- configure storage
-
-- configure queue workers
-
-- configure scheduler
-
-- configure Nginx
-
-- smoke test
+Deploy `hrm.reltroner.com` as a reproducible, rollback-safe Laravel production plane using PostgreSQL and Redis, then prove the runtime before any production identity-linking or full browser SSO claim.
 
 ### Production Environment
 
 ```text
-
 APP_ENV=production
-
 APP_DEBUG=false
-
 DB_CONNECTION=pgsql
-
 SESSION_DRIVER=redis
-
 CACHE_STORE=redis
-
 QUEUE_CONNECTION=redis
+```
 
+### Canonical Subphases
+
+Phase 9 is divided into evidence-bearing operational checkpoints:
+
+```text
+9A  Production Deployment Discovery
+9B  PHP + Composer Runtime Foundation
+9C  Immutable Release Staging / Candidate Preparation
+9D  Production Environment Foundation
+9E  Recovery Point + PostgreSQL Migration
+9F  PHP-FPM + Nginx Activation
+9G  HRM TLS + HTTPS Public Cutover
+9H  Queue + Scheduler
+9I  Production Smoke / Runtime Verification
+```
+
+Each subphase is frozen only after its own acceptance evidence exists. A later subphase must not silently reopen a frozen earlier boundary unless a regression is actually observed.
+
+### 9A — Production Deployment Discovery
+
+Verify before mutation:
+
+```text
+exact Git SHA
+current release state
+VPS runtime versions
+PHP extensions
+Nginx state
+PostgreSQL state
+Redis state
+Keycloak state
+backup state
+asset/dependency state
+filesystem ownership
+```
+
+### 9B — PHP + Composer Runtime Foundation
+
+Verify production PHP, PHP-FPM, required extensions, Composer, and FastCGI socket contract before application activation.
+
+### 9C — Immutable Release Candidate
+
+Create a release from an exact Git SHA without a `.git` working tree. The candidate must eventually live at its final SHA path before relocation-sensitive generated artifacts are sealed.
+
+### 9D — Production Environment Foundation
+
+Create or verify secret-bearing runtime configuration outside the Git release and wire the release to shared state without printing secrets.
+
+### 9E — Recovery Point + PostgreSQL Migration
+
+Before schema change:
+
+```text
+fresh backup generation exists
+checksums verify
+restore artifacts are structurally readable
+migration list is known
+```
+
+Then run PostgreSQL migrations and prove expected table/migration counts and business-data boundary.
+
+### 9F — PHP-FPM + Nginx Activation
+
+Activate Laravel behind Nginx/PHP-FPM, cache production configuration/routes/views, validate storage wiring, and prove internal/public HTTP behavior.
+
+### 9G — TLS + Public HTTPS Cutover
+
+Issue/reuse the approved ACME account safely, install certificate lineage, preserve renewal automation, redirect HTTP to HTTPS, and validate served certificate/hostname behavior.
+
+### 9H — Queue + Scheduler
+
+Current production topology may use ordinary Laravel `queue:work` supervised by systemd when Horizon is not installed in the approved release.
+
+Initial queue priority contract:
+
+```text
+critical,default,notifications,imports,reports,maintenance
+```
+
+Scheduler execution contract:
+
+```text
+systemd oneshot service
++ systemd timer every minute
+```
+
+The scheduler infrastructure may be valid even when the application currently defines zero scheduled tasks.
+
+### 9I — Production Smoke / Runtime Verification
+
+9I is the final production-plane verification before controlled production identity linking and Phase 10 browser acceptance.
+
+Required boundaries include:
+
+```text
+exact current release SHA
+source/release integrity
+production environment integrity
+Nginx configuration integrity
+systemd queue/scheduler integrity
+PostgreSQL runtime identity
+Redis cache/session/queue mapping
+Redis ephemeral cache/session smoke + cleanup
+production queue depths
+failed_jobs boundary
+backup continuity
+TLS continuity
+Keycloak live/ready/discovery
+public /up
+public /login
+root/auth redirect behavior
+frontend assets
+OIDC authorization initiation
+PKCE S256 presence
+secure session cookie attributes
+negative callback fails closed
+queue worker liveness
+scheduler real timer tick
+bounded runtime log delta
+no unexpected severe application errors
+database schema unchanged
+business data unchanged
+```
+
+9I must not print raw OIDC state, nonce, PKCE verifier, session cookie, tokens, client secret, runtime secret, or TLS private key.
+
+### Source-Defect Discovery Rule
+
+If production smoke discovers a deterministic application source defect:
+
+```text
+DO NOT patch the active release in place
+DO NOT edit vendor
+DO NOT suppress the symptom to make smoke green
+```
+
+Instead:
+
+```text
+discover root cause
+-> define source invariant
+-> add regression test
+-> minimal repository fix
+-> full CI
+-> new Git SHA
+-> new immutable release candidate
+-> rollback-safe cutover
+-> rerun Phase 9I from the required gates
+```
+
+The Laravel 13 HTTP entrypoint single-dispatch correction is the current example of this rule.
+
+### Current Phase 9 State — 2026-09-24
+
+```text
+9A  PASS / FROZEN
+9B  PASS / FROZEN
+9C  PASS / FROZEN
+9D  PASS / FROZEN
+9E  PASS / FROZEN
+9F  PASS / FROZEN
+9G  PASS / FROZEN
+9H  PASS / FROZEN
+9I  OPEN
+```
+
+Active production remains on the prior known-good release until the hotfix candidate completes a successful immutable cutover and a new 9I runtime verification.
+
+### Phase 9 Boundary
+
+Phase 9 is about the **production application plane**. It does not by itself prove full human browser SSO end-to-end acceptance.
+
+Allowed in Phase 9:
+
+```text
+OIDC discovery verification
+OIDC redirect construction
+PKCE/state/nonce presence checks without printing values
+secure-cookie validation
+negative callback rejection
+Keycloak public/internal health
+```
+
+Deferred to controlled linking + Phase 10:
+
+```text
+real production User issuer+subject mapping
+real browser authorization-code completion into approved local user
+positive production SSO login
+cross-environment browser SSO matrix
+logout end-to-end acceptance
 ```
 
 ### Exit Criteria
 
+Phase 9 is complete only when all 9A–9I subphases are PASS / FROZEN and the active production release proves:
+
 ```text
-
-https://hrm.reltroner.com responds
-
-SSO login works
-
-PostgreSQL is active DB
-
-Redis session works
-
-queue works
-
-scheduler works
-
-health check works
-
+https://hrm.reltroner.com healthy
+PostgreSQL is the active database
+Redis session/cache/queue work
+queue worker works
+scheduler timer works
+health/readiness contracts work
+TLS/backup continuity works
+OIDC initiation and safe negative callback boundary work
+no unexpected runtime error delta remains
+release/DB/configuration integrity remains intact
+rollback point is known
 ```
+
+Full browser SSO success remains a Phase 10 acceptance gate, not a shortcut inside Phase 9.
 
 ---
 
 ## Phase 10 — End-to-End SSO Acceptance
+
+### Entry Preconditions
+
+Phase 10 starts only after Phase 9I is frozen on the active release and the required controlled production identity linkage exists for the approved test user.
+
+Phase 10 must not create a business user merely to make SSO pass.
 
 Phase 10 is the full runtime acceptance point for the identity contract.
 
@@ -3727,46 +4197,79 @@ SearchAuthorizedDocuments
 Every implementation task must follow:
 
 ```text
-
 Discover
-
-   ↓
-
+   ↓
 Understand
-
-   ↓
-
+   ↓
 Define invariant
-
-   ↓
-
+   ↓
 Write / update test
-
-   ↓
-
+   ↓
 Minimal implementation
-
-   ↓
-
+   ↓
 Targeted test
-
-   ↓
-
+   ↓
 Full PostgreSQL test
-
-   ↓
-
+   ↓
+Redis integration test when runtime state is affected
+   ↓
 Inspect diff
-
-   ↓
-
-Deploy
-
-   ↓
-
+   ↓
+Commit known SHA
+   ↓
+CI release gates
+   ↓
+Immutable deploy
+   ↓
 Observe
-
+   ↓
+Freeze only from evidence
 ```
+
+A production fix is not complete at `git commit`, and a deployment is not complete at `current` symlink switch. Runtime acceptance is part of the engineering work.
+
+## 47A. Shell / Automation Safety Contract
+
+Operational scripts are part of the production control plane and must be engineered defensively.
+
+Required practices:
+
+```text
+local branch/SHA/clean-tree gate
+SSH key authentication
+local temp script written UTF-8 without BOM
+SCP transport
+local/remote SHA-256 equality
+sudo only for required remote operations
+set -Eeuo pipefail on remote Bash where appropriate
+explicit rollback boundary
+remote exit code propagated to local wrapper
+final authoritative marker emitted only after all gates pass
+```
+
+Important `pipefail` rule:
+
+> If zero matches are a valid discovery result, a `grep` pipeline must not be allowed to terminate the script merely because `grep` returned 1.
+
+Use an explicit non-failing count pattern such as:
+
+```bash
+COUNT="$(grep -Ec 'pattern' file || true)"
+```
+
+or an equivalent `awk`/parser implementation, then validate the numeric result separately.
+
+A diagnostic script failing because it found zero expected references is a script defect, not evidence of a production defect.
+
+Additional rules:
+
+- never print `.env` or runtime secret values;
+- never print OAuth authorization codes, token material, PKCE verifier, state, nonce, cookie values, private keys, or recovery secrets;
+- do not infer PASS from a local wrapper when the remote script exited non-zero;
+- cleanup/rollback must only remove resources the current run actually created;
+- if local process environment variables are modified for tests, snapshot and restore their previous values, including `DB_URL`;
+- manually continuing a failed shell session must never produce a synthetic PASS marker;
+- read-only diagnostics must not mutate `current`, database state, Nginx configuration, systemd configuration, or secret-bearing files.
 
 ---
 
@@ -3828,27 +4331,28 @@ Only then should the Agent modify code.
 
 # 49. Definition of Done for Any Engineering Phase
 
-A phase is complete only when:
+A phase is complete only when all requirements relevant to that phase are satisfied:
 
 ```text
-
 implementation complete
-
 tests complete
-
 PostgreSQL compatibility verified
-
+Redis integration verified when relevant
 security boundary verified
-
 Git diff reviewed
-
-deployment documentation updated
-
+exact Git SHA known
+CI gates PASS
+deployment documentation / operational procedure updated
 rollback known
-
-production health verified
-
+production health verified when deployed
+runtime observability delta reviewed when deployed
+no unexpected database mutation
+authoritative completion evidence exists
 ```
+
+For production operational subphases, a phase must not be marked `PASS / FROZEN` merely because a script contains an intended PASS line. The marker must actually be emitted by the successful remote execution after every required gate.
+
+If a mandatory acceptance test reveals a new defect, the phase remains open even when all earlier subphases are healthy.
 
 ---
 
@@ -4154,6 +4658,28 @@ Only after this checkpoint should the project continue into broader authorizatio
 # 53A. Architecture Revision Note
 
 The earlier Phase 6 label `Create hrm-web OIDC Client` was superseded by `OIDC Dual-Client Boundary & Identity Contract`. This is a sequencing clarification only. The final Production Foundation v1 end-state defined below remains the target and is not reduced.
+
+
+---
+
+# 53B. 2026-09-24 Engineering Refinement Note
+
+This revision incorporates evidence discovered while taking the architecture from design into an actual production plane:
+
+```text
+Laravel 13 HTTP lifecycle must be single-dispatch
+production acceptance must inspect runtime/log deltas
+release construction must respect final-path stability
+active releases must never be patched in place
+queue workers must be restarted after code cutover
+scheduler timer continuity must be re-verified
+CI evidence and exact Git SHA are release gates
+rollback is part of deployment design, not an emergency afterthought
+```
+
+The refinement changes **how the project safely reaches the target**, not **what the target is**.
+
+The final Production Foundation v1 definition below is intentionally preserved.
 
 ---
 
