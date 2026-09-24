@@ -2,10 +2,12 @@
 
 namespace Tests\Feature\Identity;
 
+use App\Http\Middleware\ValidateOidcSessionBinding;
 use App\Models\Employee;
 use App\Models\User;
 use App\Modules\Identity\Models\ExternalIdentity;
 use App\Modules\Identity\Oidc\Exceptions\OidcCallbackException;
+use App\Modules\Identity\Oidc\OidcSessionBinding;
 use App\Modules\Identity\Oidc\OidcSessionManager;
 use App\Modules\Identity\Oidc\ResolvedOidcIdentity;
 use Exception;
@@ -23,7 +25,7 @@ class OidcSessionManagerTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->sessionManager = new OidcSessionManager();
+        $this->sessionManager = new OidcSessionManager;
     }
 
     private function createApprovedIdentity(
@@ -507,10 +509,9 @@ class OidcSessionManagerTest extends TestCase
         $fakeLink = clone $externalIdentity;
         $fakeLink->setRelation('user', null);
 
-        $manager = new class($fakeLink) extends OidcSessionManager {
-            public function __construct(private ExternalIdentity $fake)
-            {
-            }
+        $manager = new class($fakeLink) extends OidcSessionManager
+        {
+            public function __construct(private ExternalIdentity $fake) {}
 
             protected function findCurrentLink(mixed $id): ?ExternalIdentity
             {
@@ -534,7 +535,8 @@ class OidcSessionManagerTest extends TestCase
         [$user, $externalIdentity] = $this->createApprovedIdentity();
         $resolved = new ResolvedOidcIdentity(user: $user, externalIdentity: $externalIdentity);
 
-        $manager = new class extends OidcSessionManager {
+        $manager = new class extends OidcSessionManager
+        {
             protected function persistLastLoginAt(ExternalIdentity $link): void
             {
                 throw new Exception('Simulated database write failure');
@@ -593,7 +595,7 @@ class OidcSessionManagerTest extends TestCase
         $this->assertNull($externalIdentity->fresh()->last_login_at);
     }
 
-    public function test_deleting_link_after_session_established_does_not_revoke_active_session(): void
+    public function test_deleting_link_after_session_establishment_revokes_authenticated_access_on_next_request(): void
     {
         [$user, $externalIdentity] = $this->createApprovedIdentity();
         $request = $this->createSessionRequest();
@@ -601,12 +603,19 @@ class OidcSessionManagerTest extends TestCase
 
         $this->sessionManager->establish($request, $resolved);
         $this->assertTrue(Auth::guard('web')->check());
+        $this->assertTrue($request->session()->has(OidcSessionBinding::SESSION_KEY));
 
-        // Documenting architecture contract: link deletion after session establishment
-        // does not automatically revoke the active Laravel session.
+        // Delete the external identity (representing committed unlink)
         $externalIdentity->delete();
 
-        $this->assertTrue(Auth::guard('web')->check());
+        // Next request carrying the OIDC-bound session loses authenticated access
+        $middleware = app(ValidateOidcSessionBinding::class);
+        $response = $middleware->handle($request, function ($req) {
+            return response('ok');
+        });
+
+        $this->assertFalse(Auth::guard('web')->check());
+        $this->assertTrue($response->isRedirect(route('login')));
     }
 
     public function test_unrelated_session_keys_are_preserved_on_login(): void

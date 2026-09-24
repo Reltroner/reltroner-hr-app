@@ -19,6 +19,10 @@ class AuthTransitionPolicy
      */
     public function legacyRegistrationEnabled(): bool
     {
+        if (app()->environment('production') || config('app.env') === 'production') {
+            return false;
+        }
+
         return config('auth_transition.legacy_registration_enabled') === true;
     }
 

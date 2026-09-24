@@ -1,8 +1,15 @@
 <?php
 
+use App\Http\Middleware\CheckRole;
+use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\RequireLegacyLoginEnabled;
+use App\Http\Middleware\RequireLegacyRegistrationEnabled;
+use App\Http\Middleware\ValidateOidcSessionBinding;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
+use Illuminate\Session\Middleware\StartSession;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -12,14 +19,20 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->web(append: [
-            \App\Http\Middleware\HandleInertiaRequests::class,
-            \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
+            ValidateOidcSessionBinding::class,
+            HandleInertiaRequests::class,
+            AddLinkHeadersForPreloadedAssets::class,
         ]);
 
+        $middleware->appendToPriorityList(
+            StartSession::class,
+            ValidateOidcSessionBinding::class,
+        );
+
         $middleware->alias([
-            'role' => \App\Http\Middleware\CheckRole::class,
-            'legacy.login' => \App\Http\Middleware\RequireLegacyLoginEnabled::class,
-            'legacy.registration' => \App\Http\Middleware\RequireLegacyRegistrationEnabled::class,
+            'role' => CheckRole::class,
+            'legacy.login' => RequireLegacyLoginEnabled::class,
+            'legacy.registration' => RequireLegacyRegistrationEnabled::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
