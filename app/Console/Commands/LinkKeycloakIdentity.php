@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Modules\Identity\Linking\IdentityLinkException;
+use App\Modules\Identity\Linking\IdentityLinkFailureReporter;
 use App\Modules\Identity\Linking\LinkExternalIdentity;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -29,15 +30,14 @@ class LinkKeycloakIdentity extends Command
 
     /**
      * Execute the console command.
-     *
-     * @param  LinkExternalIdentity  $linker
-     * @return int
      */
-    public function handle(LinkExternalIdentity $linker): int
+    public function handle(LinkExternalIdentity $linker, IdentityLinkFailureReporter $reporter): int
     {
+        $isDryRun = (bool) $this->option('dry-run');
         $rawUserId = $this->argument('user_id');
 
         if (! is_string($rawUserId) && ! is_int($rawUserId)) {
+            $reporter->reportExpected('link', 'invalid_user_id', null, null, $isDryRun);
             $this->line('result=failed');
             $this->line('reason=invalid_user_id');
 
@@ -47,6 +47,7 @@ class LinkKeycloakIdentity extends Command
         $userIdString = (string) $rawUserId;
 
         if (! preg_match('/^[1-9][0-9]*$/', $userIdString)) {
+            $reporter->reportExpected('link', 'invalid_user_id', null, null, $isDryRun);
             $this->line('result=failed');
             $this->line('reason=invalid_user_id');
 
@@ -60,14 +61,15 @@ class LinkKeycloakIdentity extends Command
         );
 
         if ($userId === false) {
+            $reporter->reportExpected('link', 'invalid_user_id', null, null, $isDryRun);
             $this->line('result=failed');
             $this->line('reason=invalid_user_id');
 
             return self::FAILURE;
         }
 
-        $subject = (string) $this->argument('subject');
-        $isDryRun = (bool) $this->option('dry-run');
+        $rawSubject = $this->argument('subject');
+        $subject = is_string($rawSubject) ? $rawSubject : '';
         $startedTransaction = false;
 
         try {
@@ -82,7 +84,7 @@ class LinkKeycloakIdentity extends Command
 
             $fingerprint = hash(
                 'sha256',
-                $identity->issuer . "\0" . $identity->subject
+                $identity->issuer."\0".$identity->subject
             );
 
             $identityId = (int) $identity->getKey();
@@ -128,20 +130,52 @@ class LinkKeycloakIdentity extends Command
                 $startedTransaction = false;
             }
 
+            $fingerprint = $this->computeSafeFingerprint(config('oidc.issuer'), $rawSubject);
+            $reporter->reportExpected('link', $e->getReason(), $userId, $fingerprint, $isDryRun);
+
             $this->line('result=failed');
             $this->line("reason={$e->getReason()}");
 
             return self::FAILURE;
-        } catch (Throwable) {
+        } catch (Throwable $e) {
             if ($startedTransaction && DB::transactionLevel() > 0) {
                 DB::rollBack();
                 $startedTransaction = false;
             }
+
+            $fingerprint = $this->computeSafeFingerprint(config('oidc.issuer'), $rawSubject);
+            $reporter->reportUnexpected('link', $e, $userId, $fingerprint, $isDryRun);
 
             $this->line('result=failed');
             $this->line('reason=unexpected_failure');
 
             return self::FAILURE;
         }
+    }
+
+    /**
+     * Compute trust-key fingerprint if and only if issuer and subject are valid strings.
+     */
+    protected function computeSafeFingerprint(mixed $issuer, mixed $subject): ?string
+    {
+        if (! is_string($issuer) || trim($issuer) === '' || strlen($issuer) > 255 || filter_var($issuer, FILTER_VALIDATE_URL) === false) {
+            return null;
+        }
+
+        $scheme = parse_url($issuer, PHP_URL_SCHEME);
+        if ($scheme !== 'https' && $scheme !== 'http') {
+            return null;
+        }
+
+        $host = parse_url($issuer, PHP_URL_HOST);
+        if (! is_string($host) || $host === '') {
+            return null;
+        }
+
+        if (! is_string($subject) || trim($subject) === '' || strlen($subject) > 255) {
+            return null;
+        }
+
+        return hash('sha256', $issuer."\0".$subject);
     }
 }

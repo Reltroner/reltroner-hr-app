@@ -3,6 +3,7 @@
 namespace Tests\Feature\Auth;
 
 use App\Models\User;
+use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Route;
@@ -13,30 +14,10 @@ class AuthTransitionEnforcementTest extends TestCase
     use RefreshDatabase;
 
     /**
-     * 1. defaults true: POST /login continues normal credential behavior.
+     * 1. Default fail closed: POST /login returns 404 and leaves caller guest.
      */
-    public function test_post_login_succeeds_by_default(): void
+    public function test_post_login_returns_404_by_default(): void
     {
-        $user = User::factory()->create([
-            'password' => Hash::make('password'),
-        ]);
-
-        $response = $this->post('/login', [
-            'email' => $user->email,
-            'password' => 'password',
-        ]);
-
-        $this->assertAuthenticated();
-        $response->assertRedirect(route('dashboard', absolute: false));
-    }
-
-    /**
-     * 2. legacy login false: POST /login returns 404 and guest remains guest.
-     */
-    public function test_post_login_returns_404_and_keeps_guest_when_legacy_login_disabled(): void
-    {
-        config(['auth_transition.legacy_login_enabled' => false]);
-
         $user = User::factory()->create([
             'password' => Hash::make('password'),
         ]);
@@ -51,7 +32,56 @@ class AuthTransitionEnforcementTest extends TestCase
     }
 
     /**
-     * 3. legacy login false: GET /login remains 200.
+     * 2. Default fail closed: GET /register returns 404.
+     */
+    public function test_get_register_returns_404_by_default(): void
+    {
+        $response = $this->get('/register');
+
+        $response->assertNotFound();
+    }
+
+    /**
+     * 3. Default fail closed: POST /register returns 404, creates no User, leaves caller guest.
+     */
+    public function test_post_register_returns_404_and_creates_no_user_by_default(): void
+    {
+        $response = $this->post('/register', [
+            'name' => 'Default Test User',
+            'email' => 'default@example.com',
+            'password' => 'password',
+            'password_confirmation' => 'password',
+        ]);
+
+        $response->assertNotFound();
+        $this->assertGuest();
+        $this->assertDatabaseMissing('users', [
+            'email' => 'default@example.com',
+        ]);
+    }
+
+    /**
+     * 4. Explicit login=true: POST /login succeeds and authenticates existing user.
+     */
+    public function test_post_login_succeeds_when_legacy_login_enabled(): void
+    {
+        config(['auth_transition.legacy_login_enabled' => true]);
+
+        $user = User::factory()->create([
+            'password' => Hash::make('password'),
+        ]);
+
+        $response = $this->post('/login', [
+            'email' => $user->email,
+            'password' => 'password',
+        ]);
+
+        $this->assertAuthenticated();
+        $response->assertRedirect(route('dashboard', absolute: false));
+    }
+
+    /**
+     * 5. legacy login false: GET /login remains 200 with SSO presentation.
      */
     public function test_get_login_remains_200_when_legacy_login_disabled(): void
     {
@@ -63,11 +93,15 @@ class AuthTransitionEnforcementTest extends TestCase
     }
 
     /**
-     * 4. legacy registration false: GET /register returns 404.
+     * 6. Production + registration=true: GET /register returns 404.
      */
-    public function test_get_register_returns_404_when_legacy_registration_disabled(): void
+    public function test_production_get_register_returns_404_even_if_flag_is_true(): void
     {
-        config(['auth_transition.legacy_registration_enabled' => false]);
+        config([
+            'app.env' => 'production',
+            'auth_transition.legacy_registration_enabled' => true,
+        ]);
+        $this->app['env'] = 'production';
 
         $response = $this->get('/register');
 
@@ -75,35 +109,85 @@ class AuthTransitionEnforcementTest extends TestCase
     }
 
     /**
-     * 5. legacy registration false: POST /register returns 404 and no User is created.
+     * 7. Production + registration=true: POST /register returns 404.
      */
-    public function test_post_register_returns_404_and_creates_no_user_when_legacy_registration_disabled(): void
+    public function test_production_post_register_returns_404_even_if_flag_is_true(): void
     {
-        config(['auth_transition.legacy_registration_enabled' => false]);
+        $this->withoutMiddleware(PreventRequestForgery::class);
+
+        config([
+            'app.env' => 'production',
+            'auth_transition.legacy_registration_enabled' => true,
+        ]);
+        $this->app['env'] = 'production';
 
         $response = $this->post('/register', [
-            'name' => 'Test User',
-            'email' => 'test@example.com',
+            'name' => 'Prod User',
+            'email' => 'prod@example.com',
             'password' => 'password',
             'password_confirmation' => 'password',
         ]);
 
         $response->assertNotFound();
-        $this->assertGuest();
+    }
+
+    /**
+     * 8. Production + registration=true: POST /register creates no User.
+     */
+    public function test_production_post_register_creates_no_user(): void
+    {
+        config([
+            'app.env' => 'production',
+            'auth_transition.legacy_registration_enabled' => true,
+        ]);
+        $this->app['env'] = 'production';
+
+        $this->post('/register', [
+            'name' => 'Prod User',
+            'email' => 'prod-nouser@example.com',
+            'password' => 'password',
+            'password_confirmation' => 'password',
+        ]);
+
         $this->assertDatabaseMissing('users', [
-            'email' => 'test@example.com',
+            'email' => 'prod-nouser@example.com',
         ]);
     }
 
     /**
-     * 6. registration false + login true: POST /login remains available.
+     * 9. Production + registration=true: POST /register leaves caller guest.
      */
-    public function test_post_login_remains_available_when_registration_disabled_and_login_enabled(): void
+    public function test_production_post_register_leaves_caller_guest(): void
     {
         config([
-            'auth_transition.legacy_registration_enabled' => false,
-            'auth_transition.legacy_login_enabled' => true,
+            'app.env' => 'production',
+            'auth_transition.legacy_registration_enabled' => true,
         ]);
+        $this->app['env'] = 'production';
+
+        $this->post('/register', [
+            'name' => 'Prod User',
+            'email' => 'prod-guest@example.com',
+            'password' => 'password',
+            'password_confirmation' => 'password',
+        ]);
+
+        $this->assertGuest();
+    }
+
+    /**
+     * 10. Production + login=true: still permits credential login for an existing User.
+     */
+    public function test_production_login_true_permits_credential_login_for_existing_user(): void
+    {
+        $this->withoutMiddleware(PreventRequestForgery::class);
+
+        config([
+            'app.env' => 'production',
+            'auth_transition.legacy_login_enabled' => true,
+            'auth_transition.legacy_registration_enabled' => false,
+        ]);
+        $this->app['env'] = 'production';
 
         $user = User::factory()->create([
             'password' => Hash::make('password'),
@@ -119,14 +203,16 @@ class AuthTransitionEnforcementTest extends TestCase
     }
 
     /**
-     * 7. login false + registration true: registration remains available.
+     * 11. Outside production: login false + registration true allows registration.
      */
-    public function test_registration_remains_available_when_login_disabled_and_registration_enabled(): void
+    public function test_outside_production_registration_remains_available_when_enabled(): void
     {
         config([
+            'app.env' => 'testing',
             'auth_transition.legacy_login_enabled' => false,
             'auth_transition.legacy_registration_enabled' => true,
         ]);
+        $this->app['env'] = 'testing';
 
         $getResponse = $this->get('/register');
         $getResponse->assertOk();
@@ -146,7 +232,7 @@ class AuthTransitionEnforcementTest extends TestCase
     }
 
     /**
-     * 8. legacy login false: GET /forgot-password returns 404.
+     * 12. legacy login false: GET /forgot-password returns 404.
      */
     public function test_get_forgot_password_returns_404_when_legacy_login_disabled(): void
     {
@@ -158,7 +244,7 @@ class AuthTransitionEnforcementTest extends TestCase
     }
 
     /**
-     * 9. legacy login false: POST /forgot-password returns 404.
+     * 13. legacy login false: POST /forgot-password returns 404.
      */
     public function test_post_forgot_password_returns_404_when_legacy_login_disabled(): void
     {
@@ -172,7 +258,7 @@ class AuthTransitionEnforcementTest extends TestCase
     }
 
     /**
-     * 10. legacy login false: GET /reset-password/{token} returns 404.
+     * 14. legacy login false: GET /reset-password/{token} returns 404.
      */
     public function test_get_reset_password_with_token_returns_404_when_legacy_login_disabled(): void
     {
@@ -184,7 +270,7 @@ class AuthTransitionEnforcementTest extends TestCase
     }
 
     /**
-     * 11. legacy login false: POST /reset-password returns 404.
+     * 15. legacy login false: POST /reset-password returns 404.
      */
     public function test_post_reset_password_returns_404_when_legacy_login_disabled(): void
     {
@@ -201,7 +287,7 @@ class AuthTransitionEnforcementTest extends TestCase
     }
 
     /**
-     * 12. legacy login true: existing password reset routes continue to be accessible.
+     * 16. legacy login true: existing password reset routes continue to be accessible.
      */
     public function test_password_reset_routes_accessible_when_legacy_login_enabled(): void
     {
@@ -212,7 +298,7 @@ class AuthTransitionEnforcementTest extends TestCase
     }
 
     /**
-     * 13. OIDC redirect route remains available regardless of legacy login flag.
+     * 17. OIDC redirect route remains available regardless of legacy login flag.
      */
     public function test_oidc_redirect_route_remains_available_regardless_of_legacy_login_flag(): void
     {
@@ -238,7 +324,7 @@ class AuthTransitionEnforcementTest extends TestCase
     }
 
     /**
-     * 14. OIDC callback registration remains unchanged.
+     * 18. OIDC callback registration remains unchanged.
      */
     public function test_oidc_callback_registration_remains_unchanged(): void
     {
@@ -250,7 +336,7 @@ class AuthTransitionEnforcementTest extends TestCase
     }
 
     /**
-     * 15. Authenticated password confirmation/update routes remain unaffected by legacy login flag.
+     * 19. Authenticated password confirmation/update routes remain unaffected by legacy login flag.
      */
     public function test_authenticated_password_confirmation_and_update_unaffected_by_legacy_login_flag(): void
     {

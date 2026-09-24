@@ -14,9 +14,6 @@ class OidcSessionManager
     /**
      * Establish a Laravel web authentication session for a resolved OIDC identity.
      *
-     * @param Request $request
-     * @param ResolvedOidcIdentity $resolved
-     * @return void
      * @throws OidcCallbackException
      */
     public function establish(Request $request, ResolvedOidcIdentity $resolved): void
@@ -76,7 +73,10 @@ class OidcSessionManager
             // 3. Regenerate session ID and CSRF token
             $request->session()->regenerate();
 
-            // 4. Persist last_login_at on the revalidated exact ExternalIdentity row
+            // 4. Create OIDC session binding
+            OidcSessionBinding::create($request, $currentLink);
+
+            // 5. Persist last_login_at on the revalidated exact ExternalIdentity row
             $this->persistLastLoginAt($currentLink);
         } catch (Throwable $e) {
             // Best-effort rollback of newly established session
