@@ -22,9 +22,9 @@
 
 **Historical pre-change HRM baseline:** 34 tests, 94 assertions, PASS
 
-**Current verified hotfix-candidate baseline:** 313 passed, 5 skipped locally, 923 assertions; PostgreSQL 18 CI PASS; Redis integration CI PASS
+**Current verified production-release baseline:** 313 passed, 5 skipped locally, 923 assertions; PostgreSQL 18 CI PASS; Redis integration CI PASS
 
-**Architecture contract revision:** 2026-09-24 refinement. Phase 6 OIDC boundaries remain intact; Phase 9 is expanded into evidence-driven production subphases, immutable-release path-stability rules, HTTP single-dispatch invariants, runtime observability gates, CI/release evidence, and rollback-safe acceptance. The final end-to-end architecture target and the Production Foundation v1 definition remain unchanged.
+**Architecture contract revision:** 2026-09-24 Phase 9I freeze. Phase 6 OIDC boundaries remain intact; Phase 9A–9I are now evidence-frozen on active production application release `80a7b6e06277a0520bfa7372b1d489b9521b2182`. This refinement also records release-owned source integrity versus contract-defined shared `storage/`, plus residual non-blocking Phase 9 operational debt. The final end-to-end architecture target and the Production Foundation v1 definition remain unchanged.
 
 
 ---
@@ -327,7 +327,7 @@ Result:      PASS
 
 That checkpoint is retained as migration history, not as the current release count.
 
-The current hotfix-candidate verification checkpoint is:
+The current production-release verification checkpoint is:
 
 ```text
 Laravel:                     13
@@ -345,12 +345,17 @@ The test count is allowed to increase as architecture coverage increases. A redu
 This subsection is an implementation snapshot, not a redefinition of the final architecture.
 
 ```text
-Active production HRM release:
+Active production HRM application release:
+80a7b6e06277a0520bfa7372b1d489b9521b2182
+
+Retained rollback release:
 3723907bc216aece148241bcf749c3edb0658008
 
-Current main / hotfix candidate:
-80a7b6e06277a0520bfa7372b1d489b9521b2182
+Documentation evidence baseline used for Phase 9I closure:
+7b6a591ab25af7ccae22ffbf17e0fc02b17f168c
 ```
+
+At the Phase 9I freeze boundary, the documentation baseline is one docs-only commit ahead of the active application release. No runtime-relevant application source differs between `80a7b6e06277a0520bfa7372b1d489b9521b2182` and that documentation baseline, so redeploying the documentation-only successor is not required to preserve application/runtime identity.
 
 Current production-foundation state:
 
@@ -363,14 +368,16 @@ Phase 9E  Recovery Point + PostgreSQL Migration           PASS / FROZEN
 Phase 9F  PHP-FPM + Nginx Activation                      PASS / FROZEN
 Phase 9G  HRM TLS + HTTPS Public Cutover                  PASS / FROZEN
 Phase 9H  Queue + Scheduler                               PASS / FROZEN
-Phase 9I  Production Smoke / Runtime Verification         OPEN
+Phase 9I  Production Smoke / Runtime Verification         PASS / FROZEN
 ```
 
-Phase 9I discovered a deterministic source-level defect in the production HTTP entrypoint: the Laravel 13 lifecycle was dispatched once through `Application::handleRequest()` and then dispatched a second time through legacy manual `Kernel` handling. The source correction is committed in the current candidate together with a focused regression test.
+The Laravel 13 HTTP entrypoint single-dispatch defect discovered during Phase 9I was corrected in repository source, regression-tested, passed the authoritative PostgreSQL/Redis release gates, and was deployed through the immutable release path. The active production release is now `80a7b6e06277a0520bfa7372b1d489b9521b2182`; the prior release remains available as the rollback target.
 
-The candidate release has not yet replaced the active production release. A failed cutover attempt was rolled back to the prior immutable release; post-rollback health remained valid, the database remained `8 migrations / 17 public tables / 0 business rows / 0 failed jobs`, and the candidate release remains inactive until the deployment path-stability problem is fully closed.
+Phase 9I acceptance evidence proves the active production plane across release/source integrity, production environment, Nginx and systemd configuration, PostgreSQL runtime identity, Redis cache/session/queue behavior, queue depths, failed-job boundary, backup continuity, TLS continuity, Keycloak live/ready/discovery, public HTTP and frontend assets, OIDC initiation, PKCE S256 presence, secure session-cookie attributes, negative callback fail-closed behavior, queue-worker liveness, scheduler real timer execution, bounded application/journal deltas, and database/business-data immutability.
 
-No production identity linking, full browser SSO acceptance, or Phase 10 claim is implied by this snapshot.
+Source-integrity closure uses the deployment boundary defined in Section 38: release-owned tracked source must match the active Git SHA, while persistent shared runtime state is validated by exact shared-path wiring. The ten tracked `storage/**/.gitignore` placeholder files are therefore expected deployment exclusions because active `release/storage` resolves exactly to `/opt/reltroner/apps/hrm/shared/storage`. Of 6,521 Git-archive regular files inspected, 10 were those expected placeholders and the remaining 6,511 release-owned files had zero hash/type/read mismatches.
+
+No production identity linking was performed during Phase 9I. Positive browser authorization-code completion into an approved local HRM User, cross-environment browser acceptance, and logout end-to-end acceptance remain controlled-linking/Phase 10 work. Phase 8 therefore remains operationally open even though Phase 9 is frozen.
 
 ---
 
@@ -2285,6 +2292,7 @@ Required invariants:
 - `current` is an atomic symlink pointer, not a mutable application directory;
 - each release directory is identified by a known Git SHA;
 - shared environment and persistent storage are outside the release directory;
+- source-integrity checks compare release-owned Git source to the active release while contract-defined shared runtime state is verified through exact shared-path wiring rather than requiring placeholder files to remain physically inside the release;
 - the previously active release is retained as a rollback point;
 - an active or sealed release is never patched manually in place;
 - rollback is performed by switching `current` to a known prior release and restarting affected long-lived runtimes.
@@ -2338,6 +2346,58 @@ extract source
 If a temporary staging path is used for transport or extraction, any path-sensitive generated artifact created there must be regenerated after the final-path move and before activation.
 
 Recommended pre-switch checks include safe scans for stale `releases/.staging-` references inside generated artifacts such as `bootstrap/cache` and `vendor/composer` where applicable.
+
+## 38.3 Release-owned source integrity vs shared runtime state
+
+Production source-integrity verification must respect the deployment ownership boundary.
+
+The canonical production wiring intentionally replaces the release-local `storage/` path with shared persistent state:
+
+```text
+releases/<active-git-sha>/storage
+        -> /opt/reltroner/apps/hrm/shared/storage
+```
+
+Therefore the integrity invariant is:
+
+```text
+release-owned Git source
+        must match the active Git SHA
+
+contract-defined shared runtime state
+        must match the approved shared-path wiring
+```
+
+It is **not** required that every tracked repository path remain physically present inside the active release when that path is intentionally superseded by the deployment contract.
+
+For the Phase 9I freeze of `80a7b6e06277a0520bfa7372b1d489b9521b2182`, the Git archive contained 6,521 regular files. The only ten tracked paths absent from the active release were these placeholder files:
+
+```text
+storage/app/.gitignore
+storage/app/private/.gitignore
+storage/app/public/.gitignore
+storage/framework/.gitignore
+storage/framework/cache/.gitignore
+storage/framework/cache/data/.gitignore
+storage/framework/sessions/.gitignore
+storage/framework/testing/.gitignore
+storage/framework/views/.gitignore
+storage/logs/.gitignore
+```
+
+These are classified as **expected deployment exclusions**, not source drift, only because all of the following were proven together:
+
+```text
+tracked storage paths are placeholder-only
+release/storage is a symlink
+release/storage resolves exactly to shared/storage
+active release SHA remains unchanged before/after the check
+remaining 6,511 release-owned files have zero hash mismatch
+remaining 6,511 release-owned files have zero type mismatch
+remaining 6,511 release-owned files have zero read error
+```
+
+Any missing non-placeholder release-owned file, unexpected tracked file under the shared boundary, wrong shared-storage target, hash/type/read mismatch, or active-SHA change fails the integrity gate closed.
 
 ---
 
@@ -3535,6 +3595,8 @@ business data unchanged
 
 9I must not print raw OIDC state, nonce, PKCE verifier, session cookie, tokens, client secret, runtime secret, or TLS private key.
 
+Source/release integrity in 9I follows Section 38.3. Shared-storage placeholder paths are accepted as deployment exclusions only when the tracked storage set is placeholder-only and the active release `storage` symlink resolves exactly to the canonical shared storage path; this exception must never mask a release-owned hash/type/read mismatch.
+
 ### Source-Defect Discovery Rule
 
 If production smoke discovers a deterministic application source defect:
@@ -3572,10 +3634,88 @@ The Laravel 13 HTTP entrypoint single-dispatch correction is the current example
 9F  PASS / FROZEN
 9G  PASS / FROZEN
 9H  PASS / FROZEN
-9I  OPEN
+9I  PASS / FROZEN
 ```
 
-Active production remains on the prior known-good release until the hotfix candidate completes a successful immutable cutover and a new 9I runtime verification.
+Active production application release:
+
+```text
+80a7b6e06277a0520bfa7372b1d489b9521b2182
+```
+
+Retained rollback release:
+
+```text
+3723907bc216aece148241bcf749c3edb0658008
+```
+
+The final Phase 9I closure established:
+
+```text
+DISCOVERY_MACHINE_SATURATED = TRUE
+PHASE9_READY_TO_FREEZE      = TRUE
+PHASE8_READY_TO_EXIT        = FALSE
+BROAD_DISCOVERY             = STOP
+```
+
+The source-integrity gate is PASS under the canonical deployment ownership boundary: all 6,511 release-owned compared files match the active Git SHA, and the only absent Git-tracked paths are the ten `storage/**/.gitignore` placeholders intentionally superseded by the proven `release/storage -> /opt/reltroner/apps/hrm/shared/storage` wiring.
+
+No production User/Employee was created, no production identity link was created, and no Phase 10 browser-SSO acceptance is implied by this freeze.
+
+### Phase 9I Freeze Evidence Summary
+
+The active production plane passed the required evidence boundary for:
+
+```text
+exact active release SHA
+release metadata / rollback target
+release-owned source integrity
+production environment integrity
+effective Nginx configuration
+queue worker / scheduler systemd topology
+PostgreSQL runtime database + role
+Redis cache/session/queue mapping
+Redis ephemeral smoke + cleanup
+all configured queue depths zero
+failed_jobs zero
+backup timer + current backup artifact integrity
+TLS certificate + hostname + renewal continuity
+Keycloak live / ready / OIDC discovery
+HTTPS /up and /login
+root / protected-route redirect behavior
+HTTP -> HTTPS redirect
+frontend CSS/JS assets
+OIDC authorization initiation
+PKCE S256 / state / nonce presence without disclosure
+Secure + HttpOnly + SameSite session cookie attributes
+negative OIDC callback fail-closed behavior
+queue-worker liveness
+real scheduler timer tick
+bounded Laravel log delta
+expected negative-callback security rejection classification
+bounded system journal delta
+database schema immutability
+business-data immutability
+final public health
+final active-release stability
+```
+
+Positive browser SSO remains intentionally outside this Phase 9 acceptance boundary.
+
+### Residual Phase 9 Non-Blocking Technical Debt
+
+The following items remain recorded as debt rather than hidden or reclassified as PASS:
+
+| Residual item | Classification | Phase 9I disposition |
+|---|---|---|
+| one inactive `.staging-*` release directory remains | operational cleanup debt | non-blocking; inactive and outside `current` |
+| one inactive `.failed-*` release directory remains | operational cleanup debt | non-blocking; inactive and outside `current` |
+| `deploy` can write active release source | immutability hardening debt | non-blocking for 9I because application runtime ownership was proven and no in-place mutation occurred; procedural immutability remains mandatory |
+| Nginx reports a duplicate IPv6/443 protocol-options warning | configuration cleanup debt | non-blocking for 9I because `nginx -t`, served TLS, redirects, and HTTPS acceptance passed |
+
+These debts do not authorize ad-hoc cleanup on the active plane. Any remediation must follow the Engineering Change Protocol, preserve rollback, and rerun only the acceptance gates affected by the change.
+
+Phase 9 is frozen at the production-application-plane boundary. Broader identity acceptance remains governed by Phase 8 controlled linking and Phase 10.
 
 ### Phase 9 Boundary
 
@@ -3621,6 +3761,8 @@ rollback point is known
 ```
 
 Full browser SSO success remains a Phase 10 acceptance gate, not a shortcut inside Phase 9.
+
+For the 2026-09-24 evidence snapshot, all Phase 9A–9I production-plane exit criteria above are satisfied and Phase 9 is PASS / FROZEN.
 
 ---
 
