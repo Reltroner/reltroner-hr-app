@@ -22,9 +22,9 @@
 
 **Historical pre-change HRM baseline:** 34 tests, 94 assertions, PASS
 
-**Current verified production-release baseline:** 313 passed, 5 skipped locally, 923 assertions; PostgreSQL 18 CI PASS; Redis integration CI PASS
+**Current verified production-release baseline:** PostgreSQL 18 CI: 370 passed, 5 skipped, 1,227 assertions; Redis integration CI: 375 passed, 1,268 assertions; both PASS on `main@6d3ac83ac325d35dfed1943c9464ebecf8b5a092`.
 
-**Architecture contract revision:** 2026-09-24 Phase 9I freeze. Phase 6 OIDC boundaries remain intact; Phase 9A–9I are now evidence-frozen on active production application release `80a7b6e06277a0520bfa7372b1d489b9521b2182`. This refinement also records release-owned source integrity versus contract-defined shared `storage/`, plus residual non-blocking Phase 9 operational debt. The final end-to-end architecture target and the Production Foundation v1 definition remain unchanged.
+**Architecture contract revision:** 2026-09-26 Phase 8 production freeze + Phase 10 entry. Phase 7 and Phase 9 remain evidence-frozen; Phase 8 Transitional Dual Authentication is now `COMPLETE / PASS / FROZEN` on active production release `6d3ac83ac325d35dfed1943c9464ebecf8b5a092`, while Phase 10 is `OPEN / CURRENT` for the remaining end-to-end identity acceptance gates. This revision records implementation evidence and sequencing only. The final end-to-end architecture target, Sections 50–54, and the Production Foundation v1 definition remain unchanged.
 
 
 ---
@@ -340,44 +340,51 @@ Redis integration CI:        PASS
 
 The test count is allowed to increase as architecture coverage increases. A reduction in previously passing behavior must be intentional, reviewed, and explained.
 
-## 3A. Current Implementation State Snapshot — 2026-09-24
+## 3A. Current Implementation State Snapshot — 2026-09-26
 
 This subsection is an implementation snapshot, not a redefinition of the final architecture.
 
 ```text
 Active production HRM application release:
-80a7b6e06277a0520bfa7372b1d489b9521b2182
+6d3ac83ac325d35dfed1943c9464ebecf8b5a092
 
-Retained rollback release:
-3723907bc216aece148241bcf749c3edb0658008
+Retained immediate rollback release:
+fcdffbf8462209b563e22df8d1927e1425a3173c
 
-Documentation evidence baseline used for Phase 9I closure:
-7b6a591ab25af7ccae22ffbf17e0fc02b17f168c
+Current repository main:
+6d3ac83ac325d35dfed1943c9464ebecf8b5a092
 ```
 
-At the Phase 9I freeze boundary, the documentation baseline is one docs-only commit ahead of the active application release. No runtime-relevant application source differs between `80a7b6e06277a0520bfa7372b1d489b9521b2182` and that documentation baseline, so redeploying the documentation-only successor is not required to preserve application/runtime identity.
-
-Current production-foundation state:
+Current engineering phase state:
 
 ```text
-Phase 9A  Production Deployment Discovery                 PASS / FROZEN
-Phase 9B  PHP + Composer Runtime Foundation               PASS / FROZEN
-Phase 9C  Immutable Release Staging                       PASS / FROZEN
-Phase 9D  Production Environment Foundation               PASS / FROZEN
-Phase 9E  Recovery Point + PostgreSQL Migration           PASS / FROZEN
-Phase 9F  PHP-FPM + Nginx Activation                      PASS / FROZEN
-Phase 9G  HRM TLS + HTTPS Public Cutover                  PASS / FROZEN
-Phase 9H  Queue + Scheduler                               PASS / FROZEN
-Phase 9I  Production Smoke / Runtime Verification         PASS / FROZEN
+Phase 7   HRM Identity Module / Runtime Foundation        PASS / FROZEN
+Phase 8   Transitional Dual Authentication               COMPLETE / PASS / FROZEN
+Phase 9   Production HRM Deployment                      PASS / FROZEN
+Phase 10  End-to-End SSO Acceptance                      OPEN / CURRENT
+Phase 11+ Subsequent engineering phases                  NOT STARTED
 ```
 
-The Laravel 13 HTTP entrypoint single-dispatch defect discovered during Phase 9I was corrected in repository source, regression-tested, passed the authoritative PostgreSQL/Redis release gates, and was deployed through the immutable release path. The active production release is now `80a7b6e06277a0520bfa7372b1d489b9521b2182`; the prior release remains available as the rollback target.
+Phase 8 production closure established a deliberately small authoritative production boundary:
 
-Phase 9I acceptance evidence proves the active production plane across release/source integrity, production environment, Nginx and systemd configuration, PostgreSQL runtime identity, Redis cache/session/queue behavior, queue depths, failed-job boundary, backup continuity, TLS continuity, Keycloak live/ready/discovery, public HTTP and frontend assets, OIDC initiation, PKCE S256 presence, secure session-cookie attributes, negative callback fail-closed behavior, queue-worker liveness, scheduler real timer execution, bounded application/journal deltas, and database/business-data immutability.
+```text
+authoritative production HRM principal     = existing approved User #1
+authoritative Employee relationship        = Employee #1
+local HRM business role                    = Admin
+legacy/demo migration set                  = EMPTY
+production ExternalIdentity                = #2
+identity trust key                         = exact Keycloak issuer + subject
+legacy local login                         = explicitly enabled for transition
+legacy registration                        = disabled
+```
 
-Source-integrity closure uses the deployment boundary defined in Section 38: release-owned tracked source must match the active Git SHA, while persistent shared runtime state is validated by exact shared-path wiring. The ten tracked `storage/**/.gitignore` placeholder files are therefore expected deployment exclusions because active `release/storage` resolves exactly to `/opt/reltroner/apps/hrm/shared/storage`. Of 6,521 Git-archive regular files inspected, 10 were those expected placeholders and the remaining 6,511 release-owned files had zero hash/type/read mismatches.
+The controlled identity-link dry-run, approved real link, correction/unlink dry-run, audit-gap reconciliation, positive browser authorization-code flow, local HRM authorization, and server-side `last_login_at` evidence all passed. The production Artisan operational identity is `www-data`; SSH/operator access remains `deploy`.
 
-No production identity linking was performed during Phase 9I. Positive browser authorization-code completion into an approved local HRM User, cross-environment browser acceptance, and logout end-to-end acceptance remain controlled-linking/Phase 10 work. Phase 8 therefore remains operationally open even though Phase 9 is frozen.
+A production presentation defect discovered during browser acceptance made the existing `Continue with Keycloak SSO` CTA effectively white-on-white because the tracked compiled CSS artifact predated the CTA-specific Tailwind classes. The source configuration was correct. The CSS artifact was deterministically rebuilt, reviewed as an exact four-file generated-asset change, passed PostgreSQL and Redis CI, merged through PR #3, and deployed immutably as release `6d3ac83ac325d35dfed1943c9464ebecf8b5a092`. Human visual acceptance confirmed that the primary SSO CTA is now visible and routes to Keycloak.
+
+The same browser acceptance established the current Phase 10 logout boundary: HRM logout invalidates the Laravel session, but the Keycloak realm SSO session remains active. Re-entering through the SSO CTA therefore does not require another password prompt. This is consistent with the current source and is **not** a Phase 8 regression; RP-initiated Keycloak logout remains an explicit Phase 10 acceptance item.
+
+Phase 9 remains frozen as the production-application-plane foundation. Later Phase 8 linking and CTA deployment did not redefine Phase 9 architecture; bounded production revalidation preserved PostgreSQL/Redis/runtime health, schema/business-data integrity, identity linkage, rollback, and immutable-release invariants.
 
 ---
 
@@ -3450,8 +3457,48 @@ All intended production users can authenticate through Keycloak using approved l
 
 The implementation mechanism may be frozen before actual production linking; the operational user-migration criterion remains mandatory before Phase 8 is considered fully exited.
 
----
+### Current Phase 8 State — 2026-09-26
 
+```text
+PHASE8_STATUS = COMPLETE / PASS / FROZEN
+ACTIVE_RELEASE = 6d3ac83ac325d35dfed1943c9464ebecf8b5a092
+ROLLBACK_RELEASE = fcdffbf8462209b563e22df8d1927e1425a3173c
+```
+
+The intended production-user set at this boundary consists of the approved real production principal already provisioned as the authoritative HRM User/Employee/Admin relationship. Legacy/demo records were classified as non-authoritative and were not migrated merely to satisfy SSO.
+
+Frozen Phase 8 evidence includes:
+
+```text
+authoritative production principal established
+exact Keycloak production identity established
+issuer + subject collision boundary PASS
+controlled link dry-run PASS
+approved real ExternalIdentity link PASS
+post-commit audit gap transparently reconciled
+correction / unlink dry-run PASS
+positive production browser SSO PASS
+server-side last_login_at evidence PASS
+existing local HRM Admin authorization PASS
+primary SSO CTA visible and functional
+legacy login compatibility explicitly controlled
+legacy registration disabled
+no JIT User / Employee / HR role creation
+```
+
+Phase 8 does **not** claim that the entire identity path is end-to-end accepted. The following remain governed by Phase 10 and are not weakened by this freeze:
+
+```text
+RP-initiated Keycloak logout
+exact post-logout redirect acceptance
+full logout -> protected-route reauthentication behavior
+cross-environment SSO-cookie runtime matrix
+remaining negative identity/runtime gates
+mutable-profile identity-stability acceptance
+remaining business-authorization runtime acceptance
+```
+
+---
 ## Phase 9 — Production HRM Deployment
 
 ### Goal
@@ -3623,7 +3670,7 @@ discover root cause
 
 The Laravel 13 HTTP entrypoint single-dispatch correction is the current example of this rule.
 
-### Current Phase 9 State — 2026-09-24
+### Phase 9 Freeze Baseline — 2026-09-24
 
 ```text
 9A  PASS / FROZEN
@@ -3637,19 +3684,19 @@ The Laravel 13 HTTP entrypoint single-dispatch correction is the current example
 9I  PASS / FROZEN
 ```
 
-Active production application release:
+The original Phase 9I freeze was established on application release:
 
 ```text
 80a7b6e06277a0520bfa7372b1d489b9521b2182
 ```
 
-Retained rollback release:
+with rollback release:
 
 ```text
 3723907bc216aece148241bcf749c3edb0658008
 ```
 
-The final Phase 9I closure established:
+The original Phase 9I closure established:
 
 ```text
 DISCOVERY_MACHINE_SATURATED = TRUE
@@ -3658,10 +3705,43 @@ PHASE8_READY_TO_EXIT        = FALSE
 BROAD_DISCOVERY             = STOP
 ```
 
-The source-integrity gate is PASS under the canonical deployment ownership boundary: all 6,511 release-owned compared files match the active Git SHA, and the only absent Git-tracked paths are the ten `storage/**/.gitignore` placeholders intentionally superseded by the proven `release/storage -> /opt/reltroner/apps/hrm/shared/storage` wiring.
+At that historical boundary, no production User/Employee had been provisioned for SSO, no production ExternalIdentity link existed, and no positive Phase 10 browser acceptance was claimed.
 
-No production User/Employee was created, no production identity link was created, and no Phase 10 browser-SSO acceptance is implied by this freeze.
+### Post-Phase 8 Bounded Production Revalidation — 2026-09-26
 
+Phase 9 remains `PASS / FROZEN` after the later controlled Phase 8 identity work and CTA asset remediation. The currently active immutable application release is:
+
+```text
+6d3ac83ac325d35dfed1943c9464ebecf8b5a092
+```
+
+and its retained immediate rollback release is:
+
+```text
+fcdffbf8462209b563e22df8d1927e1425a3173c
+```
+
+The CTA remediation release changed only the tracked generated frontend artifact set required to expose the already-implemented SSO primary action. Production deployment revalidation proved:
+
+```text
+/up = 200
+/login = 200
+/register = 404
+new CSS manifest/reference = PASS
+required SSO CTA selectors = PASS
+OIDC initiation = PASS
+database schema = UNCHANGED
+HR authority data = UNCHANGED
+ExternalIdentity link = UNCHANGED
+identity linking during deployment = NOT PERFORMED
+Keycloak mutation during deployment = NOT PERFORMED
+release-owned files verified = 6520
+shared storage placeholders excluded = 10
+release-owned mismatches = 0
+immutable release / rollback boundary = PASS
+```
+
+This bounded revalidation updates the active release evidence without redefining or reopening the Phase 9 production-foundation architecture.
 ### Phase 9I Freeze Evidence Summary
 
 The active production plane passed the required evidence boundary for:
@@ -3715,7 +3795,7 @@ The following items remain recorded as debt rather than hidden or reclassified a
 
 These debts do not authorize ad-hoc cleanup on the active plane. Any remediation must follow the Engineering Change Protocol, preserve rollback, and rerun only the acceptance gates affected by the change.
 
-Phase 9 is frozen at the production-application-plane boundary. Broader identity acceptance remains governed by Phase 8 controlled linking and Phase 10.
+Phase 9 is frozen at the production-application-plane boundary. Phase 8 controlled linking is now complete; broader end-to-end identity acceptance is governed by Phase 10.
 
 ### Phase 9 Boundary
 
@@ -3760,7 +3840,7 @@ release/DB/configuration integrity remains intact
 rollback point is known
 ```
 
-Full browser SSO success remains a Phase 10 acceptance gate, not a shortcut inside Phase 9.
+Positive production browser SSO required for the Phase 8 migration exit does not by itself constitute full Phase 10 end-to-end identity acceptance. Phase 10 remains the acceptance gate for the complete identity path.
 
 For the 2026-09-24 evidence snapshot, all Phase 9A–9I production-plane exit criteria above are satisfied and Phase 9 is PASS / FROZEN.
 
@@ -3777,6 +3857,55 @@ Phase 10 must not create a business user merely to make SSO pass.
 Phase 10 is the full runtime acceptance point for the identity contract.
 
 All Phase 6 deferred Laravel/runtime gates must be closed here.
+
+### Current Entry State — 2026-09-26
+
+```text
+PHASE10_STATUS = OPEN / CURRENT
+ENTRY_PRECONDITIONS = SATISFIED
+```
+
+Phase 10 begins from an already-approved production identity relationship; it must not create or infer a new business principal merely to complete acceptance.
+
+Production evidence already available at entry:
+
+```text
+positive production authorization-code login = PASS
+approved issuer + subject -> local HRM User mapping = PASS
+existing Keycloak SSO session -> HRM without unnecessary password prompt = PASS
+Laravel local logout invalidates the HRM session = PASS
+CSRF/session rotation on local logout = implemented
+```
+
+A deterministic logout gap was observed during the browser acceptance sequence:
+
+```text
+HRM Logout
+-> Laravel session invalidated
+-> redirect to /login
+-> Keycloak realm session remains active
+-> Continue with Keycloak SSO
+-> no credential prompt
+-> new authorization-code flow
+-> HRM dashboard
+```
+
+This is consistent with the active source: the current HRM logout controller performs local Laravel logout/session invalidation only and does not yet initiate Keycloak end-session. Administrative session termination from the Keycloak console proves that the remaining session is the IdP session, but admin-console sign-out is **not** a substitute for the required user-facing RP-initiated logout flow.
+
+Therefore Phase 10 remains open. In particular, the following acceptance work is still mandatory:
+
+```text
+RP-initiated Keycloak logout
+exact production post-logout redirect
+full logout followed by protected-route authentication requirement
+cross-environment SSO-cookie runtime tests
+remaining environment/identity negative matrix
+remaining callback/runtime negative acceptance
+mutable email/profile identity stability
+business authorization denial at operation boundary
+```
+
+No full end-to-end SSO completion claim is permitted until the Phase 10 exit criteria below are satisfied.
 
 ### Anonymous HRM access
 
