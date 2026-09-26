@@ -4,6 +4,8 @@ use App\Http\Middleware\CheckRole;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\RequireLegacyLoginEnabled;
 use App\Http\Middleware\RequireLegacyRegistrationEnabled;
+use App\Http\Middleware\RequireLocalPasswordManagementEnabled;
+use App\Http\Middleware\RequireProfileDeletionEnabled;
 use App\Http\Middleware\ValidateOidcSessionBinding;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -33,6 +35,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => CheckRole::class,
             'legacy.login' => RequireLegacyLoginEnabled::class,
             'legacy.registration' => RequireLegacyRegistrationEnabled::class,
+            'local.password' => RequireLocalPasswordManagementEnabled::class,
+            'profile.deletion' => RequireProfileDeletionEnabled::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

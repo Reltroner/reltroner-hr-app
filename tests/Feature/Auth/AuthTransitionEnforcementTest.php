@@ -176,9 +176,9 @@ class AuthTransitionEnforcementTest extends TestCase
     }
 
     /**
-     * 10. Production + login=true: still permits credential login for an existing User.
+     * 10. Production + login=true: rejects credential login for an existing User with 404 (Phase 11 cutover).
      */
-    public function test_production_login_true_permits_credential_login_for_existing_user(): void
+    public function test_production_with_legacy_login_flag_true_rejects_valid_local_credentials(): void
     {
         $this->withoutMiddleware(PreventRequestForgery::class);
 
@@ -198,8 +198,8 @@ class AuthTransitionEnforcementTest extends TestCase
             'password' => 'password',
         ]);
 
-        $this->assertAuthenticated();
-        $response->assertRedirect(route('dashboard', absolute: false));
+        $response->assertNotFound();
+        $this->assertGuest();
     }
 
     /**

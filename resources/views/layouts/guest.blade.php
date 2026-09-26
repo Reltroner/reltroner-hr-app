@@ -102,17 +102,19 @@
                         </div>
                     </div>
 
-                    <div class="pt-1 border-t flex items-center justify-between text-sm text-gray-600">
-                        Demo accounts:
-                        <span class="font-medium">admin@example.com / developer@example.com</span>
-                        <span>(password: <strong>password</strong>)</span>
+                    @if (! app(\App\Modules\Identity\Auth\AuthTransitionPolicy::class)->isProduction())
+                        <div class="pt-1 border-t flex items-center justify-between text-sm text-gray-600">
+                            Demo accounts:
+                            <span class="font-medium">admin@example.com / developer@example.com</span>
+                            <span>(password: <strong>password</strong>)</span>
 
-                        <a href="https://github.com/Reltroner/reltroner-hr-app/blob/master/README.md"
-                           target="_blank"
-                           class="text-xs px-3 py-1 rounded border hover:bg-gray-50 ml-3">
-                           View full README
-                        </a>
-                    </div>
+                            <a href="https://github.com/Reltroner/reltroner-hr-app/blob/master/README.md"
+                               target="_blank"
+                               class="text-xs px-3 py-1 rounded border hover:bg-gray-50 ml-3">
+                               View full README
+                            </a>
+                        </div>
+                    @endif
 
                     <div class="text-xs text-gray-500">
                         NOTE: Refer to README for setup, installation, and module list.

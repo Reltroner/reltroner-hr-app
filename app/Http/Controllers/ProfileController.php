@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\ProfileUpdateRequest;
+use App\Modules\Identity\Auth\AuthTransitionPolicy;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -14,10 +15,12 @@ class ProfileController extends Controller
     /**
      * Display the user's profile form.
      */
-    public function edit(Request $request): View
+    public function edit(Request $request, AuthTransitionPolicy $policy): View
     {
         return view('profile.edit', [
             'user' => $request->user(),
+            'localPasswordManagementEnabled' => $policy->localPasswordManagementEnabled(),
+            'profileDeletionEnabled' => $policy->profileDeletionEnabled(),
         ]);
     }
 
@@ -40,8 +43,12 @@ class ProfileController extends Controller
     /**
      * Delete the user's account.
      */
-    public function destroy(Request $request): RedirectResponse
+    public function destroy(Request $request, AuthTransitionPolicy $policy): RedirectResponse
     {
+        if (! $policy->profileDeletionEnabled()) {
+            abort(404);
+        }
+
         $request->validateWithBag('userDeletion', [
             'password' => ['required', 'current_password'],
         ]);

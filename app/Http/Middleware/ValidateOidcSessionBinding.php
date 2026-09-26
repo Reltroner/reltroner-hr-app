@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Modules\Identity\Auth\AuthTransitionPolicy;
 use App\Modules\Identity\Models\ExternalIdentity;
 use App\Modules\Identity\Oidc\OidcSessionBinding;
 use Closure;
@@ -12,12 +13,33 @@ use Symfony\Component\HttpFoundation\Response;
 
 class ValidateOidcSessionBinding
 {
+    public function __construct(
+        protected ?AuthTransitionPolicy $policy = null
+    ) {
+        $this->policy = $policy ?? app(AuthTransitionPolicy::class);
+    }
+
     /**
      * Handle an incoming request.
      */
     public function handle(Request $request, Closure $next): Response
     {
-        if (! $request->hasSession() || ! $request->session()->has(OidcSessionBinding::SESSION_KEY)) {
+        if (! $request->hasSession()) {
+            return $next($request);
+        }
+
+        if (! $request->session()->has(OidcSessionBinding::SESSION_KEY)) {
+            if ($this->policy->isProduction()) {
+                $authUser = Auth::guard('web')->user();
+                if ($authUser !== null) {
+                    return $this->invalidateAndRedirect(
+                        $request,
+                        'unbound_authenticated_session',
+                        authUserId: (int) $authUser->getAuthIdentifier()
+                    );
+                }
+            }
+
             return $next($request);
         }
 
