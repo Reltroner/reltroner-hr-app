@@ -87,8 +87,7 @@ class OidcLogoutTest extends TestCase
         string $idTokenHint = self::FAKE_ID_TOKEN_HINT
     ): array {
         return [
-            OidcLogoutContext::ENCRYPTED_ID_TOKEN_HINT_KEY
-                => Crypt::encryptString($idTokenHint),
+            OidcLogoutContext::ENCRYPTED_ID_TOKEN_HINT_KEY => Crypt::encryptString($idTokenHint),
         ];
     }
 
@@ -477,8 +476,7 @@ class OidcLogoutTest extends TestCase
             ->withSession([
                 OidcSessionBinding::SESSION_KEY => $bindingData,
                 OidcLogoutContext::SESSION_KEY => [
-                    OidcLogoutContext::ENCRYPTED_ID_TOKEN_HINT_KEY
-                        => $corruptCiphertext,
+                    OidcLogoutContext::ENCRYPTED_ID_TOKEN_HINT_KEY => $corruptCiphertext,
                 ],
             ])
             ->post('/logout');

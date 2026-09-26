@@ -59,8 +59,7 @@ class OidcLogoutContextTest extends TestCase
     {
         $request = $this->createSessionRequest([
             OidcLogoutContext::SESSION_KEY => [
-                OidcLogoutContext::ENCRYPTED_ID_TOKEN_HINT_KEY
-                    => 'corrupt-sensitive-looking-material',
+                OidcLogoutContext::ENCRYPTED_ID_TOKEN_HINT_KEY => 'corrupt-sensitive-looking-material',
             ],
         ]);
 

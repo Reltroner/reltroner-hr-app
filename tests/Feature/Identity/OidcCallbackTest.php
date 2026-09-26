@@ -5,8 +5,8 @@ namespace Tests\Feature\Identity;
 use App\Models\Employee;
 use App\Models\User;
 use App\Modules\Identity\Models\ExternalIdentity;
-use App\Modules\Identity\Oidc\OidcTransaction;
 use App\Modules\Identity\Oidc\OidcLogoutContext;
+use App\Modules\Identity\Oidc\OidcTransaction;
 use App\Modules\Identity\Oidc\OidcTransactionStore;
 use Firebase\JWT\JWT;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -21,6 +21,7 @@ class OidcCallbackTest extends TestCase
     use RefreshDatabase;
 
     private string $privateKey;
+
     private array $jwk;
 
     private function createApprovedExternalIdentity(
@@ -62,33 +63,33 @@ class OidcCallbackTest extends TestCase
         Cache::flush();
 
         $this->privateKey = "-----BEGIN PRIVATE KEY-----\n"
-            . "MIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQDB1c3MmVzyyYfp\n"
-            . "2HlmYXFJ7jOBx2aMJ4KvTME6vYZ1i57CEQ1hhyW2uSgGk2tcwlrpBH6FUyN0rQXU\n"
-            . "9OZXV2MU7h7mfYqGimOb8voaf3anxIP2j3r+SXYcka8t4FKkc6MkQFKT/HL49fwr\n"
-            . "+kBnPj/B4Jmuf50+A9lPSjGqDoxXWIn4GHKvkKgTnUqMltRxVRw0BqZfvTFbZHv6\n"
-            . "ktSdEjdhsT4cg9QRlJ4voRbJe1gw9kgI39TTfQgStoJP6bMKNHtGvmUXUZWHJ8om\n"
-            . "VymwjhnzWewlFPPIZl7TfZOj7Bi9zEcSD7T+p7voYLoYW3cSdKPbMMB4239aH36b\n"
-            . "I+uv0QA7AgMBAAECggEAGg1rDkNUr1sv9dm/I2gYanfmG1zaJx9OXNJjrEn57wWX\n"
-            . "jnztP/0CsCb9vriEtyB2SJhuiuvsOYvh20gZR4b6zb7dj1wzSLcEAVtsizAzmgP7\n"
-            . "OqH5RYFJKzjXg0KByRGzzTUKBFLrfxPM03pcuqOuvRe7gC0tzL6GsDYIK9OtwDVt\n"
-            . "n23xmu4G8USFGHfJm8mTiVH2P/PDyKFQEJlq8rCpkzvrI3Rpby96pOV86R9QW/Jc\n"
-            . "NVKW8oAtjV4j5zcwUAnLYMgHdG/3GYMidD2FHnn1t3rkaPtWWBwQNJ32sqiDG+km\n"
-            . "XMjYOefCQVkmvmhS41Gv1ocpk50mbSRACCjMoPYx8QKBgQD0OPvgyMR1VzmrMqwm\n"
-            . "JGHwq6ImNMXFTVY6PjM5BzY6+QsTwgQOTZgsSbswjurH0yki/l/XZe001M75/VNN\n"
-            . "Vcnq8A9Ed3gO9HxF2WWjUczjhv31hqulHHZOre//68IG80hgMXjiw73Cq1RyQJdo\n"
-            . "+bQOqX4C+PSwHei3YdDpQ7TrKwKBgQDLLsTi50JBUR6LSKCy/fdcN06sJHS786KA\n"
-            . "KlVNuRDUO4AJ6JX60SO6cUeSEvl+74fTSC1bQTVSa2HV6PhwoDMv4HlEYyAPYwsx\n"
-            . "ULU1hHYjPll/B2THUCGE1ChbRpwW+yT1zY++fTxcsDoJkvFtl9AVT7hYqHd7r4QB\n"
-            . "9ml3dx13MQKBgA9ublPku60iZs1vdTsvv1SCs8swOHLgERu7BGeNEhsl01JbRwBU\n"
-            . "XNInkoFd9m3L5OSGKC4nDZbx/2YCYLoZOpnyszRDTD29qwCK3QY1y/lwdSmHad8T\n"
-            . "7lHIYcrM7cScqK0TUy0Y6yuawco6VJbYeE0Y3pJ3gpaCPUshDh8/HPZjAoGAFf/i\n"
-            . "YY8YpWnbHMmoXLkS53E1m333BcLDfY0X32qCX/hxTKFaW+X5MF7DmRVk3lGhK0dN\n"
-            . "YewVke7+kOLAw7EU2cI8XyM8fW4D8DsE496LzBUcK5zpVItglblDBV8H15Up01OG\n"
-            . "lOGKf561KgQ3D964MRaIp1DWXxYJ/QxpLv4+uoECgYAENDd0J2GWqIY0CK2bGlmx\n"
-            . "T8SMGP8RyvmEXtquRPvRVPniUOGh7NWaib6xbe2P6OGpnRWaYcf4HWEKhHQM6qXj\n"
-            . "JjokZ37AyVxafVL8uGQ8o7zjPrQRAXNqHOiEMdFlvZvITuNaMFRR4/SfGpJrcW92\n"
-            . "vKSSlgYEMvceSx6uFTWNbQ==\n"
-            . "-----END PRIVATE KEY-----";
+            ."MIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQDB1c3MmVzyyYfp\n"
+            ."2HlmYXFJ7jOBx2aMJ4KvTME6vYZ1i57CEQ1hhyW2uSgGk2tcwlrpBH6FUyN0rQXU\n"
+            ."9OZXV2MU7h7mfYqGimOb8voaf3anxIP2j3r+SXYcka8t4FKkc6MkQFKT/HL49fwr\n"
+            ."+kBnPj/B4Jmuf50+A9lPSjGqDoxXWIn4GHKvkKgTnUqMltRxVRw0BqZfvTFbZHv6\n"
+            ."ktSdEjdhsT4cg9QRlJ4voRbJe1gw9kgI39TTfQgStoJP6bMKNHtGvmUXUZWHJ8om\n"
+            ."VymwjhnzWewlFPPIZl7TfZOj7Bi9zEcSD7T+p7voYLoYW3cSdKPbMMB4239aH36b\n"
+            ."I+uv0QA7AgMBAAECggEAGg1rDkNUr1sv9dm/I2gYanfmG1zaJx9OXNJjrEn57wWX\n"
+            ."jnztP/0CsCb9vriEtyB2SJhuiuvsOYvh20gZR4b6zb7dj1wzSLcEAVtsizAzmgP7\n"
+            ."OqH5RYFJKzjXg0KByRGzzTUKBFLrfxPM03pcuqOuvRe7gC0tzL6GsDYIK9OtwDVt\n"
+            ."n23xmu4G8USFGHfJm8mTiVH2P/PDyKFQEJlq8rCpkzvrI3Rpby96pOV86R9QW/Jc\n"
+            ."NVKW8oAtjV4j5zcwUAnLYMgHdG/3GYMidD2FHnn1t3rkaPtWWBwQNJ32sqiDG+km\n"
+            ."XMjYOefCQVkmvmhS41Gv1ocpk50mbSRACCjMoPYx8QKBgQD0OPvgyMR1VzmrMqwm\n"
+            ."JGHwq6ImNMXFTVY6PjM5BzY6+QsTwgQOTZgsSbswjurH0yki/l/XZe001M75/VNN\n"
+            ."Vcnq8A9Ed3gO9HxF2WWjUczjhv31hqulHHZOre//68IG80hgMXjiw73Cq1RyQJdo\n"
+            ."+bQOqX4C+PSwHei3YdDpQ7TrKwKBgQDLLsTi50JBUR6LSKCy/fdcN06sJHS786KA\n"
+            ."KlVNuRDUO4AJ6JX60SO6cUeSEvl+74fTSC1bQTVSa2HV6PhwoDMv4HlEYyAPYwsx\n"
+            ."ULU1hHYjPll/B2THUCGE1ChbRpwW+yT1zY++fTxcsDoJkvFtl9AVT7hYqHd7r4QB\n"
+            ."9ml3dx13MQKBgA9ublPku60iZs1vdTsvv1SCs8swOHLgERu7BGeNEhsl01JbRwBU\n"
+            ."XNInkoFd9m3L5OSGKC4nDZbx/2YCYLoZOpnyszRDTD29qwCK3QY1y/lwdSmHad8T\n"
+            ."7lHIYcrM7cScqK0TUy0Y6yuawco6VJbYeE0Y3pJ3gpaCPUshDh8/HPZjAoGAFf/i\n"
+            ."YY8YpWnbHMmoXLkS53E1m333BcLDfY0X32qCX/hxTKFaW+X5MF7DmRVk3lGhK0dN\n"
+            ."YewVke7+kOLAw7EU2cI8XyM8fW4D8DsE496LzBUcK5zpVItglblDBV8H15Up01OG\n"
+            ."lOGKf561KgQ3D964MRaIp1DWXxYJ/QxpLv4+uoECgYAENDd0J2GWqIY0CK2bGlmx\n"
+            ."T8SMGP8RyvmEXtquRPvRVPniUOGh7NWaib6xbe2P6OGpnRWaYcf4HWEKhHQM6qXj\n"
+            ."JjokZ37AyVxafVL8uGQ8o7zjPrQRAXNqHOiEMdFlvZvITuNaMFRR4/SfGpJrcW92\n"
+            ."vKSSlgYEMvceSx6uFTWNbQ==\n"
+            .'-----END PRIVATE KEY-----';
 
         $this->jwk = [
             'kty' => 'RSA',

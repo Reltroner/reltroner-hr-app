@@ -20,8 +20,7 @@ class OidcSessionManager
         Request $request,
         ResolvedOidcIdentity $resolved,
         #[\SensitiveParameter] ?string $idTokenHint = null
-    ): void
-    {
+    ): void {
         $currentUser = Auth::guard('web')->user();
 
         // Case C: Conflict if request is already authenticated as a different user

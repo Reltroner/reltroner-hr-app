@@ -700,5 +700,4 @@ class OidcSessionManagerTest extends TestCase
             OidcLogoutContext::pullIdTokenHint($request)
         );
     }
-
 }
