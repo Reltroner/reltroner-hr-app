@@ -21,9 +21,13 @@ class OidcCallbackController extends Controller
         OidcSessionManager $sessionManager
     ): Response|RedirectResponse {
         try {
-            $resolved = $service->handleCallback($request);
+            $result = $service->handleCallback($request);
 
-            $sessionManager->establish($request, $resolved);
+            $sessionManager->establish(
+                $request,
+                $result->resolvedIdentity,
+                $result->idTokenHint()
+            );
 
             return redirect()->intended(
                 route('dashboard', absolute: false)

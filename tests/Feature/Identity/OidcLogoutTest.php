@@ -4,9 +4,11 @@ namespace Tests\Feature\Identity;
 
 use App\Models\User;
 use App\Modules\Identity\Models\ExternalIdentity;
+use App\Modules\Identity\Oidc\OidcLogoutContext;
 use App\Modules\Identity\Oidc\OidcLogoutService;
 use App\Modules\Identity\Oidc\OidcSessionBinding;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Crypt;
 use Tests\TestCase;
 
 class OidcLogoutTest extends TestCase
@@ -18,6 +20,8 @@ class OidcLogoutTest extends TestCase
     private const FAKE_SUBJECT = 'test-binding-subject-99';
 
     private const FAKE_EMAIL = 'binding-test@reltroner.com';
+
+    private const FAKE_ID_TOKEN_HINT = 'header.payload.signature';
 
     protected function setUp(): void
     {
@@ -75,6 +79,20 @@ class OidcLogoutTest extends TestCase
     }
 
     /**
+     * Create encrypted logout context matching the production session shape.
+     *
+     * @return array<string, string>
+     */
+    private function createLogoutContextData(
+        string $idTokenHint = self::FAKE_ID_TOKEN_HINT
+    ): array {
+        return [
+            OidcLogoutContext::ENCRYPTED_ID_TOKEN_HINT_KEY
+                => Crypt::encryptString($idTokenHint),
+        ];
+    }
+
+    /**
      * Helper to parse query parameters from a redirect URL.
      *
      * @return array<string, string>
@@ -100,7 +118,10 @@ class OidcLogoutTest extends TestCase
         $bindingData = $this->createBindingData($user, $identity);
 
         $response = $this->actingAs($user)
-            ->withSession([OidcSessionBinding::SESSION_KEY => $bindingData])
+            ->withSession([
+                OidcSessionBinding::SESSION_KEY => $bindingData,
+                OidcLogoutContext::SESSION_KEY => $this->createLogoutContextData(),
+            ])
             ->post('/logout');
 
         $this->assertGuest();
@@ -116,33 +137,42 @@ class OidcLogoutTest extends TestCase
 
         $params = $this->parseRedirectQuery($targetUrl);
         $this->assertSame('hrm-web', $params['client_id'] ?? null);
+        $this->assertSame(self::FAKE_ID_TOKEN_HINT, $params['id_token_hint'] ?? null);
         $this->assertSame('https://hrm.reltroner.com/', $params['post_logout_redirect_uri'] ?? null);
     }
 
     /**
-     * B. Exact safe query contract: query contains ONLY client_id and post_logout_redirect_uri.
+     * B. Exact safe query contract: only client_id, id_token_hint, and
+     * post_logout_redirect_uri are emitted for a fresh OIDC session.
      */
-    public function test_logout_redirect_query_contains_only_safe_parameters_and_no_tokens_or_secrets(): void
+    public function test_logout_redirect_query_contains_only_required_hint_and_no_other_tokens_or_secrets(): void
     {
         [$user, $identity] = $this->createApprovedIdentity();
         $bindingData = $this->createBindingData($user, $identity);
 
         $response = $this->actingAs($user)
-            ->withSession([OidcSessionBinding::SESSION_KEY => $bindingData])
+            ->withSession([
+                OidcSessionBinding::SESSION_KEY => $bindingData,
+                OidcLogoutContext::SESSION_KEY => $this->createLogoutContextData(),
+            ])
             ->post('/logout');
 
         $targetUrl = (string) $response->headers->get('Location');
         $params = $this->parseRedirectQuery($targetUrl);
 
-        // Prove exact query keys (ONLY client_id and post_logout_redirect_uri)
         $keys = array_keys($params);
         sort($keys);
-        $this->assertSame(['client_id', 'post_logout_redirect_uri'], $keys);
 
-        // Prove explicit absence of forbidden parameter keys
+        $this->assertSame([
+            'client_id',
+            'id_token_hint',
+            'post_logout_redirect_uri',
+        ], $keys);
+
+        $this->assertSame(self::FAKE_ID_TOKEN_HINT, $params['id_token_hint']);
+
         $forbiddenKeys = [
             'client_secret',
-            'id_token_hint',
             'id_token',
             'access_token',
             'refresh_token',
@@ -151,8 +181,13 @@ class OidcLogoutTest extends TestCase
             'subject',
             'email',
         ];
+
         foreach ($forbiddenKeys as $forbiddenKey) {
-            $this->assertArrayNotHasKey($forbiddenKey, $params, "Query parameter '{$forbiddenKey}' must not be present in logout URL.");
+            $this->assertArrayNotHasKey(
+                $forbiddenKey,
+                $params,
+                "Query parameter '{$forbiddenKey}' must not be present in logout URL."
+            );
         }
     }
 
@@ -165,11 +200,15 @@ class OidcLogoutTest extends TestCase
         $bindingData = $this->createBindingData($user, $identity);
 
         $response = $this->actingAs($user)
-            ->withSession([OidcSessionBinding::SESSION_KEY => $bindingData])
+            ->withSession([
+                OidcSessionBinding::SESSION_KEY => $bindingData,
+                OidcLogoutContext::SESSION_KEY => $this->createLogoutContextData(),
+            ])
             ->post('/logout');
 
         $this->assertGuest();
         $response->assertSessionMissing(OidcSessionBinding::SESSION_KEY);
+        $response->assertSessionMissing(OidcLogoutContext::SESSION_KEY);
     }
 
     /**
@@ -346,7 +385,10 @@ class OidcLogoutTest extends TestCase
         $bindingData = $this->createBindingData($user, $identity);
 
         $response = $this->actingAs($user)
-            ->withSession([OidcSessionBinding::SESSION_KEY => $bindingData])
+            ->withSession([
+                OidcSessionBinding::SESSION_KEY => $bindingData,
+                OidcLogoutContext::SESSION_KEY => $this->createLogoutContextData(),
+            ])
             ->get('/logout');
 
         $this->assertGuest();
@@ -358,6 +400,7 @@ class OidcLogoutTest extends TestCase
 
         $params = $this->parseRedirectQuery($targetUrl);
         $this->assertSame('hrm-web', $params['client_id'] ?? null);
+        $this->assertSame(self::FAKE_ID_TOKEN_HINT, $params['id_token_hint'] ?? null);
         $this->assertSame('https://hrm.reltroner.com/', $params['post_logout_redirect_uri'] ?? null);
     }
 
@@ -387,11 +430,67 @@ class OidcLogoutTest extends TestCase
     public function test_direct_service_build_logout_url_constructs_valid_rfc3986_url(): void
     {
         $service = app(OidcLogoutService::class);
-        $url = $service->buildLogoutUrl();
+        $url = $service->buildLogoutUrl(self::FAKE_ID_TOKEN_HINT);
 
         $this->assertStringStartsWith('https://auth.reltroner.com/realms/reltroner/protocol/openid-connect/logout?', $url);
         $this->assertStringContainsString('client_id=hrm-web', $url);
+        $this->assertStringContainsString('id_token_hint=header.payload.signature', $url);
         $this->assertStringContainsString('post_logout_redirect_uri=https%3A%2F%2Fhrm.reltroner.com%2F', $url);
+    }
+
+    /**
+     * Historical OIDC sessions created before this remediation have no logout
+     * context and retain the confirmation-capable fallback.
+     */
+    public function test_oidc_bound_historical_session_without_logout_context_uses_safe_fallback(): void
+    {
+        [$user, $identity] = $this->createApprovedIdentity();
+        $bindingData = $this->createBindingData($user, $identity);
+
+        $response = $this->actingAs($user)
+            ->withSession([OidcSessionBinding::SESSION_KEY => $bindingData])
+            ->post('/logout');
+
+        $this->assertGuest();
+
+        $params = $this->parseRedirectQuery(
+            (string) $response->headers->get('Location')
+        );
+
+        $keys = array_keys($params);
+        sort($keys);
+
+        $this->assertSame([
+            'client_id',
+            'post_logout_redirect_uri',
+        ], $keys);
+        $this->assertArrayNotHasKey('id_token_hint', $params);
+    }
+
+    public function test_corrupt_logout_context_falls_back_after_local_logout(): void
+    {
+        [$user, $identity] = $this->createApprovedIdentity();
+        $bindingData = $this->createBindingData($user, $identity);
+        $corruptCiphertext = 'not-a-valid-encrypted-payload';
+
+        $response = $this->actingAs($user)
+            ->withSession([
+                OidcSessionBinding::SESSION_KEY => $bindingData,
+                OidcLogoutContext::SESSION_KEY => [
+                    OidcLogoutContext::ENCRYPTED_ID_TOKEN_HINT_KEY
+                        => $corruptCiphertext,
+                ],
+            ])
+            ->post('/logout');
+
+        $this->assertGuest();
+        $response->assertSessionMissing(OidcLogoutContext::SESSION_KEY);
+
+        $targetUrl = (string) $response->headers->get('Location');
+        $params = $this->parseRedirectQuery($targetUrl);
+
+        $this->assertArrayNotHasKey('id_token_hint', $params);
+        $this->assertStringNotContainsString($corruptCiphertext, $targetUrl);
     }
 
     /**

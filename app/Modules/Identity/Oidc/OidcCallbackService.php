@@ -20,10 +20,10 @@ class OidcCallbackService
      * Process an incoming OIDC callback request and return resolved local identity.
      *
      * @param Request $request
-     * @return ResolvedOidcIdentity
+     * @return OidcCallbackResult
      * @throws OidcCallbackException
      */
-    public function handleCallback(Request $request): ResolvedOidcIdentity
+    public function handleCallback(Request $request): OidcCallbackResult
     {
         // 1. Require state query value to be a scalar non-empty string
         $state = $request->query('state');
@@ -64,7 +64,13 @@ class OidcCallbackService
         $validatedIdentity = $this->idTokenValidator->validate($idToken, $transaction->nonce);
 
         // 12. Resolve approved local identity
-        return $this->identityResolver->resolve($validatedIdentity);
+        $resolvedIdentity = $this->identityResolver->resolve($validatedIdentity);
+
+        // 13. Carry the validated ID token only until session establishment.
+        return new OidcCallbackResult(
+            resolvedIdentity: $resolvedIdentity,
+            idTokenHint: $idToken
+        );
     }
 
     /**

@@ -6,10 +6,12 @@ use App\Models\Employee;
 use App\Models\User;
 use App\Modules\Identity\Models\ExternalIdentity;
 use App\Modules\Identity\Oidc\OidcTransaction;
+use App\Modules\Identity\Oidc\OidcLogoutContext;
 use App\Modules\Identity\Oidc\OidcTransactionStore;
 use Firebase\JWT\JWT;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
@@ -264,6 +266,24 @@ class OidcCallbackTest extends TestCase
 
         $this->assertAuthenticatedAs($user);
         $response->assertRedirect(route('dashboard', absolute: false));
+        $response->assertSessionHas(OidcLogoutContext::SESSION_KEY);
+
+        $logoutContext = session(OidcLogoutContext::SESSION_KEY);
+
+        $this->assertIsArray($logoutContext);
+        $this->assertSame([
+            OidcLogoutContext::ENCRYPTED_ID_TOKEN_HINT_KEY,
+        ], array_keys($logoutContext));
+        $this->assertNotSame(
+            $idToken,
+            $logoutContext[OidcLogoutContext::ENCRYPTED_ID_TOKEN_HINT_KEY]
+        );
+        $this->assertSame(
+            $idToken,
+            Crypt::decryptString(
+                $logoutContext[OidcLogoutContext::ENCRYPTED_ID_TOKEN_HINT_KEY]
+            )
+        );
     }
 
     public function test_approved_oidc_callback_redirects_to_dashboard(): void
@@ -304,6 +324,7 @@ class OidcCallbackTest extends TestCase
 
         $response->assertStatus(403);
         $response->assertSee('Access denied.');
+        $response->assertSessionMissing(OidcLogoutContext::SESSION_KEY);
         $this->assertGuest();
     }
 

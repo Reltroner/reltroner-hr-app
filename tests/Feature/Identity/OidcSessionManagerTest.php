@@ -7,6 +7,7 @@ use App\Models\Employee;
 use App\Models\User;
 use App\Modules\Identity\Models\ExternalIdentity;
 use App\Modules\Identity\Oidc\Exceptions\OidcCallbackException;
+use App\Modules\Identity\Oidc\OidcLogoutContext;
 use App\Modules\Identity\Oidc\OidcSessionBinding;
 use App\Modules\Identity\Oidc\OidcSessionManager;
 use App\Modules\Identity\Oidc\ResolvedOidcIdentity;
@@ -632,4 +633,72 @@ class OidcSessionManagerTest extends TestCase
         $this->assertSame('/profile', $request->session()->get('url.intended'));
         $this->assertSame('custom_value', $request->session()->get('custom_key'));
     }
+
+    public function test_new_oidc_login_stores_encrypted_logout_context_for_validated_id_token(): void
+    {
+        [$user, $externalIdentity] = $this->createApprovedIdentity();
+        $request = $this->createSessionRequest();
+        $resolved = new ResolvedOidcIdentity(
+            user: $user,
+            externalIdentity: $externalIdentity
+        );
+        $idTokenHint = 'header.payload.signature';
+
+        $this->sessionManager->establish(
+            $request,
+            $resolved,
+            $idTokenHint
+        );
+
+        $payload = $request->session()->get(OidcLogoutContext::SESSION_KEY);
+
+        $this->assertIsArray($payload);
+        $this->assertSame([
+            OidcLogoutContext::ENCRYPTED_ID_TOKEN_HINT_KEY,
+        ], array_keys($payload));
+        $this->assertNotSame(
+            $idTokenHint,
+            $payload[OidcLogoutContext::ENCRYPTED_ID_TOKEN_HINT_KEY]
+        );
+        $this->assertStringNotContainsString(
+            $idTokenHint,
+            json_encode($payload)
+        );
+
+        $this->assertSame(
+            $idTokenHint,
+            OidcLogoutContext::pullIdTokenHint($request)
+        );
+        $this->assertFalse(
+            $request->session()->has(OidcLogoutContext::SESSION_KEY)
+        );
+    }
+
+    public function test_same_user_idempotent_callback_does_not_overwrite_existing_logout_context(): void
+    {
+        [$user, $externalIdentity] = $this->createApprovedIdentity();
+        $request = $this->createSessionRequest();
+        $resolved = new ResolvedOidcIdentity(
+            user: $user,
+            externalIdentity: $externalIdentity
+        );
+
+        $this->sessionManager->establish(
+            $request,
+            $resolved,
+            'first.header.signature'
+        );
+
+        $this->sessionManager->establish(
+            $request,
+            $resolved,
+            'second.header.signature'
+        );
+
+        $this->assertSame(
+            'first.header.signature',
+            OidcLogoutContext::pullIdTokenHint($request)
+        );
+    }
+
 }

@@ -14,11 +14,13 @@ class OidcLogoutService
      * - Validate required configuration (fail closed on missing/invalid)
      * - Construct Keycloak end-session endpoint generically from issuer
      * - Encode query parameters using RFC 3986
-     * - Include strictly client_id and post_logout_redirect_uri (no secrets or tokens)
+     * - Include client_id and post_logout_redirect_uri
+     * - Include id_token_hint only when a validated session-scoped hint is available
+     * - Never include client_secret, access_token, refresh_token, or authorization code
      *
      * @return string The fully constructed Keycloak logout URL
      */
-    public function buildLogoutUrl(): string
+    public function buildLogoutUrl(#[\SensitiveParameter] ?string $idTokenHint = null): string
     {
         $this->validateConfiguration();
 
@@ -33,8 +35,13 @@ class OidcLogoutService
 
         $parameters = [
             'client_id' => $clientId,
-            'post_logout_redirect_uri' => $postLogoutRedirectUri,
         ];
+
+        if (is_string($idTokenHint) && trim($idTokenHint) !== '') {
+            $parameters['id_token_hint'] = $idTokenHint;
+        }
+
+        $parameters['post_logout_redirect_uri'] = $postLogoutRedirectUri;
 
         $query = http_build_query($parameters, '', '&', PHP_QUERY_RFC3986);
 

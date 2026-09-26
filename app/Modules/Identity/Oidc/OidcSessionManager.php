@@ -16,7 +16,11 @@ class OidcSessionManager
      *
      * @throws OidcCallbackException
      */
-    public function establish(Request $request, ResolvedOidcIdentity $resolved): void
+    public function establish(
+        Request $request,
+        ResolvedOidcIdentity $resolved,
+        #[\SensitiveParameter] ?string $idTokenHint = null
+    ): void
     {
         $currentUser = Auth::guard('web')->user();
 
@@ -76,7 +80,15 @@ class OidcSessionManager
             // 4. Create OIDC session binding
             OidcSessionBinding::create($request, $currentLink);
 
-            // 5. Persist last_login_at on the revalidated exact ExternalIdentity row
+            // 5. Replace stale logout context. Production callback flows provide
+            // the already-validated ID token; callers without one retain fallback.
+            OidcLogoutContext::forget($request);
+
+            if ($idTokenHint !== null) {
+                OidcLogoutContext::store($request, $idTokenHint);
+            }
+
+            // 6. Persist last_login_at on the revalidated exact ExternalIdentity row
             $this->persistLastLoginAt($currentLink);
         } catch (Throwable $e) {
             // Best-effort rollback of newly established session
