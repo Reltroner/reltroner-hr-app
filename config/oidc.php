@@ -16,6 +16,7 @@ return [
     'client_id' => env('OIDC_CLIENT_ID'),
     'client_secret' => env('OIDC_CLIENT_SECRET'),
     'redirect_uri' => env('OIDC_REDIRECT_URI'),
+    'post_logout_redirect_uri' => env('OIDC_POST_LOGOUT_REDIRECT_URI'),
     'environment' => env('OIDC_ENVIRONMENT'),
     'expected_identity_class' => env('OIDC_EXPECTED_IDENTITY_CLASS'),
 
