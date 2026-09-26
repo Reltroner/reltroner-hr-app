@@ -4013,6 +4013,80 @@ Only after this phase may the identity path be described as end-to-end accepted.
 
 ---
 
+### Final Freeze State — 2026-09-27
+
+```text
+PHASE10_STATUS = COMPLETE / PASS / FROZEN
+END_TO_END_IDENTITY_ACCEPTANCE = PASS
+ACTIVE_PRODUCTION_RELEASE = 2148988a17c326faa20fe8efdf9ffd3a34fc526e
+ROLLBACK_RELEASE = 832ab4ea8847ac5c33fde0916e5dee4017a31af9
+NEXT_ACTIVE_PHASE = PHASE 11 — SSO CUTOVER
+```
+
+Phase 10 closes the full runtime acceptance gate for the deployed production identity path.
+
+Final accepted production behavior:
+
+```text
+anonymous protected access
+-> OIDC authorization
+-> Keycloak production environment gate
+-> Laravel callback validation
+-> exact approved issuer + subject linkage
+-> existing local HRM User
+-> existing HRM business authorization
+-> protected HRM session
+
+existing Keycloak realm session
++ fresh Laravel session
+-> SSO reuse without unnecessary password prompt
+-> environment gate still evaluated
+-> callback
+-> same approved local HRM User
+
+HRM logout
+-> local Laravel logout/session invalidation
+-> RP-initiated Keycloak end-session
+-> no confirmation page for fresh OIDC sessions
+-> exact production post-logout redirect
+-> protected route requires authentication
+-> subsequent SSO requires Keycloak credentials again
+```
+
+Acceptance evidence combines:
+
+```text
+Phase 6 frozen Keycloak environment/client boundary
+Phase 7 frozen Laravel identity/callback boundary
+Phase 10 production browser acceptance
+Phase 10 local regression
+Phase 10 PostgreSQL/Redis CI
+Phase 10 immutable production deployment evidence
+```
+
+The final production remediation retains the validated ID token only as encrypted, session-scoped logout context for RP-initiated logout. It does not persist the ID token in business tables, does not add access/refresh-token persistence, and does not alter the permanent identity trust key.
+
+Permanent identity and authorization boundaries remain:
+
+```text
+identity trust key = exact issuer + subject
+email/username = mutable metadata, not authority
+OIDC authentication != environment eligibility
+environment eligibility != HRM business authorization
+OIDC does not create User
+OIDC does not create Employee
+OIDC does not grant HR role
+OIDC does not infer linkage by email
+```
+
+The frozen Phase 6 production/demo Keycloak boundary and active-SSO-cookie cross-environment denial evidence remain authoritative. The demo Laravel application plane is not claimed as deployed by this freeze; the existing contract requirement that production and demo Laravel sessions remain separate applies when both application planes are deployed.
+
+Phase 10 required no database schema migration, no production identity relink, and no relaxation of Keycloak redirect/environment gates.
+
+Only Phase 11 may now change the production login authority/cutover posture.
+
+---
+
 ## Phase 11 — SSO Cutover
 
 ### Goal
