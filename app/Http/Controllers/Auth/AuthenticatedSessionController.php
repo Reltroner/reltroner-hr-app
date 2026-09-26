@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Modules\Identity\Auth\AuthTransitionPolicy;
+use App\Modules\Identity\Oidc\OidcLogoutContext;
 use App\Modules\Identity\Oidc\OidcLogoutService;
 use App\Modules\Identity\Oidc\OidcSessionBinding;
 use Illuminate\Http\RedirectResponse;
@@ -42,6 +43,9 @@ class AuthenticatedSessionController extends Controller
     public function destroy(Request $request, OidcLogoutService $oidcLogoutService): RedirectResponse
     {
         $wasOidcBound = OidcSessionBinding::has($request);
+        $idTokenHint = $wasOidcBound
+            ? OidcLogoutContext::pullIdTokenHint($request)
+            : null;
 
         Auth::guard('web')->logout();
 
@@ -53,7 +57,7 @@ class AuthenticatedSessionController extends Controller
             return redirect('/');
         }
 
-        $logoutUrl = $oidcLogoutService->buildLogoutUrl();
+        $logoutUrl = $oidcLogoutService->buildLogoutUrl($idTokenHint);
 
         return redirect()->away($logoutUrl);
     }

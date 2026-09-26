@@ -13,21 +13,18 @@ class OidcCallbackService
         protected OidcTokenClient $tokenClient,
         protected IdTokenValidator $idTokenValidator,
         protected OidcIdentityResolver $identityResolver
-    ) {
-    }
+    ) {}
 
     /**
      * Process an incoming OIDC callback request and return resolved local identity.
      *
-     * @param Request $request
-     * @return ResolvedOidcIdentity
      * @throws OidcCallbackException
      */
-    public function handleCallback(Request $request): ResolvedOidcIdentity
+    public function handleCallback(Request $request): OidcCallbackResult
     {
         // 1. Require state query value to be a scalar non-empty string
         $state = $request->query('state');
-        if (!is_string($state) || trim($state) === '') {
+        if (! is_string($state) || trim($state) === '') {
             Log::error('oidc.callback.missing_state');
             throw new OidcCallbackException(400, 'missing_state', 'Invalid authorization state.');
         }
@@ -49,7 +46,7 @@ class OidcCallbackService
 
         // 5. Require code to be scalar non-empty string. If absent, HTTP 400 (transaction remains consumed)
         $code = $request->query('code');
-        if (!is_string($code) || trim($code) === '') {
+        if (! is_string($code) || trim($code) === '') {
             Log::error('oidc.callback.missing_code');
             throw new OidcCallbackException(400, 'missing_code', 'Authorization code missing.');
         }
@@ -64,7 +61,13 @@ class OidcCallbackService
         $validatedIdentity = $this->idTokenValidator->validate($idToken, $transaction->nonce);
 
         // 12. Resolve approved local identity
-        return $this->identityResolver->resolve($validatedIdentity);
+        $resolvedIdentity = $this->identityResolver->resolve($validatedIdentity);
+
+        // 13. Carry the validated ID token only until session establishment.
+        return new OidcCallbackResult(
+            resolvedIdentity: $resolvedIdentity,
+            idTokenHint: $idToken
+        );
     }
 
     /**
@@ -82,12 +85,12 @@ class OidcCallbackService
         $expectedIdentityClass = config('oidc.expected_identity_class');
 
         if (
-            !is_string($issuer) || trim($issuer) === ''
-            || !is_string($clientId) || trim($clientId) === ''
-            || !is_string($clientSecret) || trim($clientSecret) === ''
-            || !is_string($redirectUri) || trim($redirectUri) === ''
-            || !is_string($environment) || trim($environment) === ''
-            || !is_string($expectedIdentityClass) || trim($expectedIdentityClass) === ''
+            ! is_string($issuer) || trim($issuer) === ''
+            || ! is_string($clientId) || trim($clientId) === ''
+            || ! is_string($clientSecret) || trim($clientSecret) === ''
+            || ! is_string($redirectUri) || trim($redirectUri) === ''
+            || ! is_string($environment) || trim($environment) === ''
+            || ! is_string($expectedIdentityClass) || trim($expectedIdentityClass) === ''
         ) {
             Log::error('oidc.config.missing_required_settings');
             throw new OidcCallbackException(500, 'invalid_configuration', 'OIDC configuration is not ready.');
@@ -96,7 +99,7 @@ class OidcCallbackService
         $isCoherent = ($environment === 'production' && $expectedIdentityClass === 'production_user')
             || ($environment === 'demo' && $expectedIdentityClass === 'demo_user');
 
-        if (!$isCoherent) {
+        if (! $isCoherent) {
             Log::error('oidc.config.incoherent_environment_pair');
             throw new OidcCallbackException(500, 'incoherent_configuration', 'OIDC configuration is not ready.');
         }
