@@ -24,7 +24,7 @@
 
 **Current verified production-release baseline:** Phase 11 frozen code/release `f86aee2371a27e69f33351662a8bb97df044f3c8`; local full suite: 388 passed, 5 skipped, 1,491 assertions; PostgreSQL Compatibility workflow run #76 PASS and Redis Infrastructure Integration workflow run #69 PASS on the same SHA.
 
-**Architecture contract revision:** 2026-09-30 Phase 11 production SSO hard-cutover freeze + Phase 12 authorization-hardening entry. Phases 7–11 are evidence-frozen; Phase 10 End-to-End SSO Acceptance and Phase 11 SSO Cutover are `COMPLETE / PASS / FROZEN`. Phase 12 Authorization Hardening is `IN PROGRESS`; Phase 12A Authorization Discovery and Phase 12B Architecture Contract Refinement are `COMPLETE / PASS`, while authorization implementation has not started. This revision records the frozen authentication/session-provenance boundary, Phase 12 discovery evidence, and authorization scope refinement. The final end-to-end architecture target, Sections 50–54, and the Production Foundation v1 definition remain unchanged.
+**Architecture contract revision:** 2026-09-30 Phase 11 production SSO hard-cutover freeze + Phase 12 SME production-authorization refinement. Phases 7–11 are evidence-frozen; Phase 10 End-to-End SSO Acceptance and Phase 11 SSO Cutover are `COMPLETE / PASS / FROZEN`. Phase 12 Authorization Hardening is `IN PROGRESS`. Phase 12A Authorization Discovery and Phase 12B Architecture Contract Refinement are frozen. Phase 12C-1 Dashboard Presence + middleware-enabled RBAC baseline is evidence-frozen on candidate SHA `07c9ed1029fb6aa7dde04bd362d834278c735fce`, while application source on `main` remains at the pre-integration baseline until PR integration. Phase 12R adds the production authorization contract required for a multi-user, multi-company SME HRM product before Phase 12C-2 domain authorization continues. This revision is documentation-only and does not merge application source or weaken the final end-to-end architecture target, Sections 50–54, or the Production Foundation v1 definition.
 
 
 ---
@@ -375,8 +375,12 @@ Phase 10   End-to-End SSO Acceptance                     COMPLETE / PASS / FROZE
 Phase 11   SSO Cutover                                   COMPLETE / PASS / FROZEN
 Phase 12   Authorization Hardening                       IN PROGRESS
 Phase 12A  Authorization Discovery                       COMPLETE / PASS
-Phase 12B  Architecture Contract Refinement              COMPLETE / PASS
-Phase 12C+ Authorization Implementation                  NOT STARTED
+Phase 12B  Architecture Contract Refinement              COMPLETE / PASS / FROZEN
+Phase 12C-1 Dashboard Presence + RBAC Baseline           COMPLETE / PASS / FROZEN*
+Phase 12R  SME Production Authorization Refinement       COMPLETE / PASS / FROZEN
+Phase 12C-2+ Domain Authorization Implementation         NOT STARTED
+
+* Phase 12C-1 is evidence-frozen on candidate SHA `07c9ed1029fb6aa7dde04bd362d834278c735fce`; this status does not imply that candidate application source has already been integrated into `main`.
 ```
 
 The frozen production identity/authentication boundary is now:
@@ -4304,49 +4308,63 @@ Phase 11 is now an immutable architectural baseline for Phase 12.
 **Phase 12 — IN PROGRESS**
 
 ```text
-12A  Authorization Discovery             COMPLETE / PASS
-12B  Architecture Contract Refinement    COMPLETE / PASS
-12C+ Authorization Implementation        NOT STARTED
+12A    Authorization Discovery                         COMPLETE / PASS
+12B    Architecture Contract Refinement                COMPLETE / PASS / FROZEN
+12C-1  Dashboard Presence + RBAC Baseline             COMPLETE / PASS / FROZEN*
+12R    SME Production Authorization Refinement         COMPLETE / PASS / FROZEN
+12C-2  Payroll Reference Authorization                 NOT STARTED
+12C-3  Leave Authorization                             NOT STARTED
+12C-4  Attendance / Presence Authorization             NOT STARTED
+12C-5  Task Authorization                              NOT STARTED
+12C-6  Employee / Role Mutation Boundaries             NOT STARTED
+12C-7  Public Exposure + Authorization Surface         NOT STARTED
+12C-8  Full Authorization Regression / Acceptance      NOT STARTED
 ```
 
-Phase 12 began from the frozen Phase 11 application-code baseline:
+`*` Phase 12C-1 is evidence-frozen on implementation candidate:
 
 ```text
-f86aee2371a27e69f33351662a8bb97df044f3c8
+07c9ed1029fb6aa7dde04bd362d834278c735fce
 ```
 
-The Phase 11 architecture-contract freeze was subsequently committed on `main` as:
+Evidence for that exact candidate includes:
 
 ```text
-ce6de72aa340faa31890f4f516c813027c3d7e5e
+local full suite                       = 393 passed, 5 skipped, 1,497 assertions
+PostgreSQL Compatibility push run #80 = PASS
+Redis Integration push run #73        = PASS
+GitGuardian check                      = PASS
+production deployment                  = NOT PERFORMED
 ```
 
-The difference between these commits is documentation-only. Phase 12A therefore discovered the same application source that exists beneath the current `main` architecture-contract revision.
+The application source on `main` remains at the pre-integration baseline until the implementation PR is integrated. This contract records the evidence-frozen candidate without pretending that the application source has already landed on `main`.
 
-Phase 12A was read-only:
+### Product Requirement Refinement
+
+`hrm.reltroner.com` is not designed only as an internal Reltroner Studio HRM.
+
+The production target is a reusable HRM platform suitable for many users and multiple SME companies.
+
+Authorization architecture must therefore be designed so that current single-company compatibility can evolve into multi-company tenant isolation and membership-scoped permissions without rewriting authorization logic across every controller.
+
+The required long-term product qualities are:
 
 ```text
-branch creation       = NONE
-source modification   = NONE
-production access     = NONE
-database mutation     = NONE
+multi-user
+multi-company
+tenant isolated
+least privilege
+deny by default
+server-side authorization
+record-aware authorization
+operation-aware authorization
+permission-ready
+auditable
+testable
+fail closed
 ```
 
-Implementation must not begin until this contract refinement is frozen and the implementation branch is created from the resulting approved `main` commit.
-
-### Goal
-
-Repair current HRM business-authorization gaps independently from authentication while preserving the frozen Phase 11 production identity and session-provenance boundary.
-
-Phase 12 must not redesign authentication, introduce a second login authority, or use Keycloak environment identity classes as HRM business permissions.
-
-The invariant remains:
-
-```text
-successful Keycloak authentication
-        !=
-HRM business authorization
-```
+Phase 12 must build the enforcement foundation for this direction without prematurely implementing the Phase 17 tenancy schema or the Phase 18 permission schema.
 
 ### Frozen Phase 11 Invariants
 
@@ -4359,7 +4377,7 @@ Phase 12 must preserve:
 - production closure of local registration and password recovery;
 - production closure of local password management;
 - production closure of self-service profile deletion;
-- the approved local User → Employee relationship;
+- the approved local User → Employee compatibility relationship;
 - production/demo identity separation;
 - immutable-release deployment;
 - PostgreSQL release gates;
@@ -4368,17 +4386,25 @@ Phase 12 must preserve:
 
 Authorization remediation must not reopen any Phase 11 authentication compatibility mechanism.
 
+The invariant remains:
+
+```text
+successful Keycloak authentication
+        !=
+HRM business authorization
+```
+
 ### Phase 12A Discovery Evidence
 
-Read-only discovery established the following current authorization surface.
+Read-only discovery established the current authorization surface.
 
 #### Route-level exposure
 
-`/dashboard` currently has authentication, verification, and role middleware.
+`/dashboard` has authentication, verification, and role middleware.
 
-`/dashboard/presence` is registered independently and currently lacks the equivalent authorization boundary.
+The original Phase 12 baseline registered `/dashboard/presence` independently without the same authorization boundary. Phase 12C-1 corrected that on candidate SHA `07c9ed1029fb6aa7dde04bd362d834278c735fce`.
 
-The active `/api/public-employees` route is registered from `routes/web.php` without an authentication or business-authorization middleware boundary.
+The active `/api/public-employees` route remains a Phase 12 authorization-surface concern and requires an explicit bounded disposition after caller discovery.
 
 The repository also contains:
 
@@ -4386,7 +4412,7 @@ The repository also contains:
 routes/api/public-employees.php
 ```
 
-but Phase 12 must distinguish tracked route source from actually registered runtime route before modifying or deleting stale route files.
+but tracked route source and actually registered runtime route must remain distinguished before modification or deletion.
 
 #### Legacy authorization authority
 
@@ -4404,21 +4430,29 @@ users.employee_id
 
 Phase 12 may harden authorization around this compatibility model.
 
-Phase 12 must not silently remove or replace that compatibility model with permission-based RBAC. Permission-based RBAC remains Phase 18 work.
+Phase 12 must not silently replace it with the Phase 18 permission model.
 
-#### Existing test weakness
+Legacy role/session state is a compatibility mechanism, not the final SaaS authorization architecture.
 
-Current tests include authorization-sensitive test paths that disable `CheckRole`.
+#### Existing test weakness and Phase 12C-1 remediation
 
-A test that disables the authorization middleware being evaluated is not acceptance evidence for Phase 12.
+Earlier authorization-sensitive tests disabled `CheckRole`, so they did not prove RBAC behavior.
 
-Phase 12 must introduce middleware-enabled authorization tests using real User → Employee → Role relationships.
+Phase 12C-1 replaced that false-confidence pattern with middleware-enabled authorization tests using a real:
 
-Authentication-transition tests that intentionally disable unrelated CSRF middleware are not classified as RBAC defects merely because they contain `withoutMiddleware()`.
+```text
+User
+-> Employee
+-> Role
+```
+
+relationship.
+
+Authorization tests must continue to exercise real middleware and real authority relationships rather than bypassing them.
 
 #### Business Policy state
 
-Discovery found authentication-transition policy references, including `AuthTransitionPolicy`, but did not establish existing Laravel business-record policies for:
+Phase 12A did not establish existing Laravel business-record Policies for:
 
 ```text
 Employee
@@ -4429,120 +4463,413 @@ Task
 Role
 ```
 
-Phase 12 should introduce business Policies only where they are the smallest safe mechanism for enforcing record-level and transition-level authorization.
+Phase 12 domain hardening may introduce Policies where they are the smallest safe mechanism for centralized record/action authorization.
 
 Authentication-transition policy and HRM business authorization policy are separate concepts.
 
-### Authorization Model for Phase 12
+---
 
-Phase 12 distinguishes three questions:
+### SME Production Authorization Model
 
-```text
-1. May this role enter this feature?
+Phase 12 authorization is no longer modeled as only role entry plus record ownership.
 
-2. May this authenticated User access this particular record?
-
-3. May this authenticated User perform this particular operation or transition?
-```
-
-Route middleware answers only the first question.
-
-Record Policies or equivalent centralized authorization logic must answer the second and third where required.
-
-Index-query filtering and record authorization must agree.
-
-A user must not be able to bypass an index filter by directly requesting a known record identifier.
-
-### Phase 12 Scope
-
-Priority order:
-
-1. protect `/dashboard/presence`;
-2. establish real middleware-enabled RBAC tests;
-3. establish record-ownership authorization;
-4. harden payroll authorization;
-5. harden leave authorization;
-6. harden attendance / presence authorization;
-7. harden task authorization;
-8. enforce protected-role mutation invariants;
-9. resolve the public employee endpoint exposure;
-10. run full authorization regression and production-compatible acceptance.
-
-### Domain Authorization Direction
-
-#### Dashboard Presence
-
-The dashboard presence aggregation endpoint must require an authorization boundary consistent with the dashboard information it supports.
-
-Anonymous access must fail closed.
-
-Phase 12 must explicitly test allowed and denied roles rather than relying only on route inspection.
-
-#### Payroll
-
-Payroll authorization must distinguish privileged payroll administration from employee self-access.
-
-At minimum:
+Every protected business operation must be reasoned about through the following decision layers:
 
 ```text
-Admin / approved privileged role
--> may perform explicitly permitted payroll administration
+1. Principal identity
+   Who is the authenticated User and is the production session provenance valid?
 
-ordinary Employee
--> may access only payroll records belonging to their own Employee identity
--> must not access another employee's payroll by direct record ID
--> must not mutate or delete another employee's payroll
+2. Tenant / organization context
+   Which company is this request operating inside?
+
+3. Capability
+   What business capability does this member have in that organization?
+
+4. Resource scope
+   Which records may this member reach?
+
+5. Operation / transition
+   What action or state transition may this member perform?
+
+6. Final policy decision
+   Are all required boundaries satisfied?
 ```
 
-Existing index filtering alone is insufficient.
+The target decision flow is:
 
-The exact privileged-role compatibility matrix must be frozen by tests before controller behavior is changed.
+```text
+Authenticated Principal
+        ↓
+Authorization Context
+        ↓
+Tenant Boundary
+        ↓
+Capability
+        ↓
+Resource Scope
+        ↓
+Operation / State Transition
+        ↓
+Policy Decision
+        ↓
+Enforcement
+        ↓
+Authorized Query / Mutation
+```
 
-#### Leave
+During Phase 12:
+
+```text
+Tenant Boundary
+-> architectural invariant only
+-> real implementation deferred until Phase 17
+
+Capability
+-> current legacy role compatibility
+-> real permission model deferred until Phase 18
+
+Resource Scope
+-> current User / Employee relationship where applicable
+
+Policy Decision
+-> Laravel Policy or equivalent centralized server-side rule
+```
+
+The Phase 12 implementation must create seams that Phase 17 and Phase 18 can extend without scattering tenant and permission rules throughout controllers.
+
+---
+
+### Production Authorization Invariants
+
+#### Deny by default
+
+Unknown, missing, malformed, or unsupported authorization context must fail closed.
+
+Examples:
+
+```text
+missing authenticated principal
+missing required Employee relationship
+unknown role/capability
+missing future Membership
+missing future Organization context
+unsupported operation
+direct resource outside authorized scope
+```
+
+must not become implicit allow paths.
+
+The current `CheckRole` compatibility behavior must be reviewed as part of Phase 12C-7 so routes that expect role restriction cannot accidentally become open because an allowed-role declaration is missing.
+
+#### Tenant boundary outranks business privilege
+
+When Phase 17 exists, tenant isolation is evaluated before record ownership or business permission.
+
+The invariant will be:
+
+```text
+resource.organization_id
+        ==
+active Membership.organization_id
+```
+
+before an actor may use tenant-scoped business privileges.
+
+A privileged member of Organization A must never gain access to Organization B merely because the role name or permission exists in both organizations.
+
+#### No global tenant role
+
+The long-term model must allow one human User to have different authority in different companies.
+
+Example:
+
+```text
+User X
+-> HR Manager in Organization A
+-> self-service member in Organization B
+```
+
+A global `users.role` value must therefore never become the final authority for multi-company access.
+
+Legacy role fields remain compatibility inputs only until Phase 18 migration is complete.
+
+#### Hybrid capability + relationship / attribute scope
+
+Pure role-name checks are insufficient for production SME authorization.
+
+The target pattern is:
+
+```text
+capability
+AND tenant scope
+AND resource relationship / ownership
+AND operation / transition rule
+```
+
+Examples:
+
+```text
+payroll.view.self
+AND same organization
+AND payroll.employee_id == actor.employee_id
+
+leave.approve
+AND same organization
+AND actor has approval capability
+AND leave transition is valid
+```
+
+Phase 12 does not create those final permission records yet, but current Policies must be structured so role compatibility can later be replaced with permission evaluation.
+
+#### Index scope and record Policy must converge
+
+This pattern is forbidden:
+
+```text
+index query = filtered
+show/update/delete = unrestricted route-model binding
+```
+
+For every protected domain:
+
+```text
+list scope
+AND
+individual record decision
+```
+
+must represent the same authorization boundary.
+
+Direct record identifiers must never bypass a narrower index.
+
+#### UI is not an authorization boundary
+
+Blade visibility, disabled buttons, navigation hiding, and client-side checks are presentation only.
+
+Server-side authorization must protect:
+
+```text
+create
+view
+update
+delete
+approve
+reject
+assign
+status transition
+export
+import
+bulk operation
+API action
+queued/background business operation
+```
+
+where applicable.
+
+#### Sensitive fields require operation-aware authorization
+
+A user being allowed to update a resource does not automatically mean every field is authorized.
+
+Sensitive ownership, privilege, money, and workflow fields must be protected against privilege escalation.
+
+Examples include:
+
+```text
+employee_id
+role_id
+organization_id
+status
+approval state
+salary
+bonus
+deduction
+payment date
+assignee / assigned_to
+```
+
+Validation and fillable protection do not replace authorization.
+
+#### Platform authority is separate from tenant authority
+
+Future Reltroner platform operations must not be conflated with customer-company administration.
+
+The invariant is:
+
+```text
+Reltroner platform operator
+        !=
+tenant administrator
+```
+
+A platform operator must not implicitly receive unrestricted tenant payroll, employee, leave, or other business-data access merely because they operate the SaaS platform.
+
+Any future support impersonation or exceptional access must be explicit, bounded, tenant-aware, time-limited where applicable, reasoned, and auditable.
+
+#### Background and derived surfaces preserve authorization context
+
+Future queue jobs, exports, reports, search documents, analytics, and AI tools that expose tenant business data must preserve the same tenant and authorization context as interactive HTTP access.
+
+Moving work to another execution mechanism must never widen access.
+
+---
+
+### Terminology
+
+Phase 12 and later authorization documentation should avoid the ambiguous phrase `ordinary Employee` when referring to authorization class.
+
+Use:
+
+```text
+privileged administrator
+non-privileged member
+self-service member
+resource owner
+tenant administrator
+platform operator
+```
+
+where those concepts are intended.
+
+The `Employee` model remains a business/personnel entity; it is not automatically an authorization role.
+
+---
+
+### Phase 12 Scope and Sequencing
+
+Current sequence:
+
+```text
+12C-1 Dashboard Presence + real RBAC baseline
+      COMPLETE / PASS / FROZEN on candidate 07c9ed1...
+
+12R   SME Production Authorization Refinement
+      COMPLETE / PASS / FROZEN by this contract revision
+
+12C-2 Payroll Authorization
+      reference implementation for the production authorization pattern
+
+12C-3 Leave Authorization
+
+12C-4 Attendance / Presence Authorization
+
+12C-5 Task Authorization
+
+12C-6 Employee / Role Mutation Boundaries
+
+12C-7 Public Exposure + Authorization Surface Hardening
+
+12C-8 Full Authorization Regression / Acceptance
+```
+
+Do not combine unrelated domains into one uncontrolled patch.
+
+Payroll is intentionally the first record-level reference implementation so subsequent domains can follow a reviewed and tested enforcement pattern.
+
+---
+
+### Phase 12C-2 Reference Pattern — Payroll
+
+Payroll authorization must demonstrate the production pattern without prematurely implementing Phase 17 or Phase 18.
+
+Current compatibility evidence establishes:
+
+```text
+Admin
+HR Manager
+-> privileged payroll administration
+
+Developer
+Accountant
+Data Entry
+Animator
+Marketer
+-> non-privileged payroll self-access
+```
+
+The name `Accountant` alone does not grant payroll-administration authority. Privilege must come from the frozen compatibility matrix now and explicit permissions later.
+
+The Phase 12 compatibility invariant is:
+
+```text
+privileged payroll administrator
+-> may perform explicitly authorized payroll administration
+
+non-privileged self-service member
+-> may list own payroll records
+-> may view own payroll record
+-> must not view another member's payroll by direct ID
+-> must not create payroll
+-> must not edit/update payroll, including own payroll
+-> must not delete payroll, including own payroll
+```
+
+Record ownership for current Phase 12 is derived from the authenticated User / Employee relationship, not from caller-controlled input.
+
+A payroll Policy or equivalent centralized decision must be designed so Phase 17 can add organization isolation and Phase 18 can replace role-name compatibility with permissions without rewriting controller authorization semantics.
+
+---
+
+### Leave Authorization Direction
 
 Leave authorization must distinguish:
 
 ```text
-employee self-service
-leave administration
+self-service member
+leave administrator
 approval / rejection authority
 ```
 
-An ordinary employee must not obtain another employee's leave request through direct model binding.
+A self-service member must not obtain another member's leave request through direct model binding.
 
-An ordinary employee must not obtain approval authority by submitting `status`, `employee_id`, or by directly calling a general resource update endpoint.
+A self-service member must not obtain approval authority by submitting sensitive fields such as `status`, `employee_id`, or by directly calling a general resource update endpoint.
 
-Existing approve/reject route verbs remain unchanged during Phase 12; their HTTP-method migration belongs to Phase 13.
+Existing approve/reject route verbs remain unchanged during Phase 12; HTTP-method migration belongs to Phase 13.
 
-#### Attendance / Presence
+Future Phase 17 enforcement must additionally require same-organization scope.
 
-An ordinary employee may operate only on the attendance capabilities explicitly defined as employee self-service.
+---
 
-Direct access to another employee's Presence record must fail closed.
+### Attendance / Presence Authorization Direction
 
-Manual attendance administration must remain a privileged operation.
+A self-service member may operate only attendance capabilities explicitly defined as self-service.
 
-Phase 12 must not combine authorization hardening with unrelated attendance schema/date remediation unless a discovered authorization defect cannot be corrected safely without it.
+Direct access to another member's Presence record must fail closed.
 
-#### Tasks
+Manual attendance administration remains privileged.
+
+Phase 12 must not combine authorization hardening with unrelated attendance schema/date remediation unless authorization cannot be corrected safely without it.
+
+Future Phase 17 enforcement must add organization isolation before record ownership.
+
+---
+
+### Task Authorization Direction
 
 Index filtering by `assigned_to` must be consistent with record-level access.
 
-An ordinary employee must not view or mutate another employee's Task by direct route-model binding.
+A non-privileged member must not view or mutate another member's Task through direct route-model binding unless an explicit business capability later permits it.
 
-Authorization for task status transitions must be enforced in Phase 12.
+Task status transitions require server-side authorization.
 
 Changing task-status GET routes to mutation verbs remains Phase 13 work.
 
-#### Roles
+Future department/team/tenant relationship rules may extend the Policy without bypassing tenant scope.
+
+---
+
+### Employee / Role Mutation Direction
 
 Protected-role invariants must apply at the mutation boundary, not only at UI or edit-page entry.
 
-A direct update request must not bypass a protected-role rule merely because the edit page itself would have redirected.
+Direct updates must not bypass protected-role rules.
 
-Phase 12 does not redesign roles into permission-based RBAC.
+Phase 12 does not migrate to permission-based RBAC, but Policy boundaries must be compatible with that migration.
 
-#### Public Employee Endpoint
+Future tenant administration must never imply authority over another organization.
+
+---
+
+### Public Employee Endpoint Direction
 
 The active unauthenticated employee endpoint must receive an explicit disposition:
 
@@ -4558,7 +4885,11 @@ The decision must follow caller discovery.
 
 Do not remove it merely because its name contains `public`.
 
-Inspect all repository callers first and preserve required application behavior with the minimum data exposure necessary.
+Required application behavior must be preserved with minimum data exposure.
+
+For a future multi-company product, an employee-directory endpoint must never become a cross-tenant enumeration surface.
+
+---
 
 ### Explicit Phase Boundaries
 
@@ -4570,16 +4901,15 @@ OIDC session-provenance redesign
 local-login restoration
 organization/membership schema introduction
 organization_id migrations
-permission-based RBAC migration
+final permission-table migration
 state-changing GET route migration
 general CSRF redesign
 audit subsystem implementation
 modular-monolith extraction
+external policy-engine infrastructure
 ```
 
 These remain assigned to later phases.
-
-In particular:
 
 ```text
 Phase 13
@@ -4589,47 +4919,46 @@ Phase 14
 -> Audit foundation
 
 Phase 17
--> Organization / multi-tenancy
+-> Organization / multi-tenancy + real tenant isolation
 
 Phase 18
--> Permission-based RBAC v2
+-> Membership-scoped permission-based RBAC v2
 ```
 
-### Organization Boundary
+Phase 12 is responsible for creating enforceable, centralized authorization boundaries that those later phases can extend.
+
+---
+
+### Organization Boundary — Phase 12 Seam / Phase 17 Enforcement
 
 The final architecture requires organization-scoped authorization.
 
-However, the current Phase 12 application model does not yet contain the Phase 17:
+The current Phase 12 schema does not yet contain the Phase 17 tenancy model.
 
-```text
-User
--> Membership
--> Organization
--> Employee
-```
-
-boundary.
-
-Therefore Phase 12 must not fabricate an organization model or `organization_id` scope solely to satisfy a future test example.
+Therefore Phase 12 must not fabricate an `Organization`, `Membership`, or `organization_id` scope solely to make future tests pass.
 
 For Phase 12:
 
 ```text
 current record ownership
--> mandatory
+-> mandatory where applicable
 
-cross-organization authorization
--> architecture invariant retained
--> implementation/testing deferred until Phase 17 tenancy exists
+tenant-isolation invariant
+-> mandatory architecture requirement
+
+cross-organization runtime enforcement
+-> deferred until Phase 17 schema exists
 ```
 
-Once Phase 17 introduces the organization boundary, every applicable Policy created in Phase 12 must be extended or revalidated for tenant isolation.
+Every applicable Policy or centralized authorization rule created in Phase 12 must be easy to extend or revalidate when Phase 17 introduces tenant context.
 
-### Required Test Style
+---
 
-Do not disable `CheckRole` in a test whose purpose is to prove role authorization.
+### Required Test Model
 
-Create realistic authorization fixtures:
+Do not disable `CheckRole` in tests whose purpose is authorization.
+
+Current realistic compatibility fixtures use:
 
 ```text
 User
@@ -4637,31 +4966,68 @@ User
 -> Role
 ```
 
-Required patterns include, where applicable:
+Current Phase 12 tests must cover applicable combinations of:
 
 ```text
-guest denied
-
-Admin allowed
-
-HR Manager allowed according to the frozen compatibility matrix
-
-ordinary Employee denied from privileged feature
-
-Employee may access own record
-
-Employee forbidden from another employee record
-
-direct record-ID bypass forbidden
-
-protected mutation forbidden
-
-index filtering agrees with record Policy
+guest
+privileged administrator
+non-privileged member
+resource owner
+other resource owner
+direct record ID
+allowed operation
+forbidden operation
+sensitive-field attempt
+missing relationship / malformed context
 ```
 
-Cross-organization tests are deferred until Phase 17 provides an Organization/Membership model.
+After Phase 17, the matrix expands to:
 
-Tests must assert authorization behavior, not merely that a page renders successfully.
+```text
+Actor
+× Organization
+× Capability
+× Resource relationship
+× Action
+× Resource state
+```
+
+Mandatory future tenant cases include:
+
+```text
+same tenant + permitted capability + valid scope      ALLOW
+
+same tenant + missing capability                      DENY
+
+same tenant + wrong resource scope                    DENY
+
+cross tenant + otherwise privileged actor             DENY
+
+cross tenant + direct known record ID                 DENY
+
+missing active Membership / tenant context            DENY
+```
+
+Tests must prove authorization behavior, not merely successful page rendering.
+
+---
+
+### Enforcement Design Rules
+
+Phase 12 implementations must follow these rules:
+
+1. Route middleware may protect broad feature entry, but it is not sufficient for record/action authorization.
+2. Policies or an equivalent centralized mechanism must own record/action decisions where appropriate.
+3. Controllers must not duplicate role matrices across unrelated branches when a centralized decision can express them safely.
+4. Query scopes and individual record decisions must converge.
+5. Caller-controlled request fields must never define the actor's ownership or tenant authority.
+6. UI visibility is derived presentation, not enforcement.
+7. Future tenant and permission checks must be additive to existing Policy boundaries rather than requiring controller rewrites.
+8. No generic abstraction should be introduced merely for theoretical reuse; the first domain implementation must prove the pattern.
+9. Authorization failures must fail closed and must not mutate business data.
+10. Authorization logic must remain independently testable.
+
+---
 
 ### Implementation Protocol
 
@@ -4674,9 +5040,11 @@ state current compatibility behavior
         ↓
 define authorization invariant
         ↓
+freeze actor / resource / action matrix
+        ↓
 write failing targeted test with middleware active
         ↓
-implement smallest safe authorization change
+implement smallest centralized server-side authorization change
         ↓
 run targeted tests
         ↓
@@ -4689,32 +5057,62 @@ run PostgreSQL compatibility gate
 run Redis gate when runtime/session state is affected
         ↓
 inspect exact diff
+        ↓
+commit exact SHA
+        ↓
+CI acceptance on exact SHA
+        ↓
+freeze from evidence
 ```
 
-Do not combine unrelated authorization domains into one uncontrolled patch.
+If a material product or security requirement changes after a subphase is frozen:
+
+```text
+pause next implementation unit
+        ↓
+perform read-only impact discovery
+        ↓
+update architecture contract
+        ↓
+freeze the refinement
+        ↓
+resume implementation from the refined contract
+```
+
+Do not rewrite or pretend earlier evidence never existed.
+
+---
 
 ### Phase 12 Exit Criteria
 
 Phase 12 may be marked `COMPLETE / PASS / FROZEN` only when:
 
 ```text
-/dashboard/presence is protected
+/dashboard/presence authorization boundary PASS
 
-active public employee-data exposure has an approved bounded disposition
+middleware-enabled RBAC acceptance PASS
 
-middleware-enabled RBAC acceptance tests PASS
+required domain Policies / centralized authorization active
 
-required record-level Policies/equivalent authorization are active
+payroll ownership + administration authorization PASS
 
-payroll direct-record authorization PASS
+leave record + transition authorization PASS
 
-leave direct-record and transition authorization PASS
+attendance / presence record authorization PASS
 
-attendance/presence direct-record authorization PASS
+task record + transition authorization PASS
 
-task direct-record and transition authorization PASS
+employee / protected-role mutation boundaries PASS
 
-protected-role mutation invariant PASS
+active public employee exposure has approved bounded disposition
+
+deny-by-default authorization-surface review PASS
+
+direct-record bypass tests PASS
+
+sensitive-field privilege-escalation tests PASS where applicable
+
+index scope agrees with record Policy
 
 legacy role compatibility remains intentional and tested
 
@@ -4732,14 +5130,23 @@ diff reviewed
 
 immutable production deployment completed when required
 
-production authorization smoke/negative acceptance PASS
+production authorization smoke / negative acceptance PASS
 
 no unexpected database mutation
 
 rollback remains known
 ```
 
-Phase 12 completion does not imply completion of Phase 13 HTTP/CSRF hardening, Phase 17 multi-tenancy, or Phase 18 permission-based RBAC.
+Phase 12 completion does not imply completion of:
+
+```text
+Phase 13 HTTP / CSRF hardening
+Phase 14 audit foundation
+Phase 17 multi-tenancy runtime enforcement
+Phase 18 permission-based RBAC
+```
+
+But Phase 12 authorization boundaries must be intentionally designed so those later phases can extend rather than replace them.
 
 ---
 
@@ -4871,59 +5278,153 @@ Each module extraction must preserve behavior and pass full regression testing.
 
 ### Goal
 
-Prepare HRM for multiple companies.
+Turn HRM into a real multi-company SME platform with enforced tenant isolation.
+
+Authentication and business authorization are not sufficient by themselves; tenant isolation is an independent mandatory boundary.
 
 ### Core Model
 
+Target relationship:
+
 ```text
-
 User
-
- └── Membership
-
-      └── Organization
-
-           └── Employee
-
+  └── Membership [1..N]
+        ├── Organization
+        ├── organization-local role / permissions
+        └── Employee identity in that Organization
 ```
 
-Potential organization-scoped tables:
+A single User may belong to multiple Organizations with different authority in each.
+
+Example:
 
 ```text
+same User
+-> HR Manager in Organization A
+-> self-service member in Organization B
+```
 
+Global role state must not grant cross-company privilege.
+
+### Tenant Context
+
+Every tenant-scoped request must resolve an authoritative active Membership / Organization context.
+
+Tenant context must not be accepted solely from caller-controlled IDs, headers, form fields, or route parameters without membership verification.
+
+The core invariant is:
+
+```text
+authenticated User
+AND active Membership
+AND Membership.organization_id == resource.organization_id
+```
+
+before tenant-scoped business authorization succeeds.
+
+### Organization-Scoped Data
+
+Applicable tables are expected to become organization scoped, including:
+
+```text
 employees
-
 departments
-
-roles
-
+roles / membership-role assignments
 tasks
-
 presences
-
 leave_requests
-
 payrolls
-
 documents
-
 audit_logs
+reporting/search authorization metadata
+```
 
+Exact schema design must be frozen during Phase 17 discovery before migration implementation.
+
+### Isolation Enforcement
+
+Tenant isolation must apply consistently across:
+
+```text
+index queries
+route-model / direct-ID access
+create
+update
+delete
+state transitions
+bulk operations
+exports
+imports
+queues / background jobs
+reports
+search
+analytics
+AI tools
+cache keys
+audit records
+```
+
+A tenant-scoped object from another Organization must never become accessible merely because its numeric ID is known.
+
+Where object-existence disclosure is itself sensitive, scoped lookup may intentionally produce not-found semantics rather than reveal that another tenant owns the record. The behavior must be consistent and tested.
+
+### Platform vs Tenant Authority
+
+Reltroner platform authority and customer tenant authority are separate domains.
+
+```text
+platform operator
+        !=
+tenant administrator
+```
+
+Platform operation must not silently grant unrestricted access to tenant HR data.
+
+Any future support or impersonation path must be explicit, bounded, tenant-aware, attributable, and auditable.
+
+### Database and Constraint Requirements
+
+Organization-scoped uniqueness must be reviewed explicitly.
+
+Values that are only unique inside a tenant must use organization-aware constraints rather than accidental global uniqueness.
+
+Migrations must preserve:
+
+```text
+foreign-key integrity
+tenant ownership
+rollback safety
+PostgreSQL compatibility
+zero accidental cross-tenant reassignment
 ```
 
 ### Mandatory Tests
 
 ```text
+Organization A cannot list Organization B records
 
-Organization A cannot read Organization B
+Organization A cannot read Organization B by direct known ID
 
 Organization A cannot mutate Organization B
 
-indexes scoped by organization
+privileged actor in A remains denied in B
 
-unique constraints correctly scoped
+same User with memberships in A and B receives membership-specific authority
 
+missing Membership fails closed
+
+invalid / stale tenant context fails closed
+
+indexes are scoped by organization
+
+unique constraints are correctly scoped
+
+background work preserves tenant context
+
+search / report surfaces preserve tenant scope
 ```
+
+Every applicable Phase 12 Policy must be extended or revalidated for the real Organization boundary.
 
 ---
 
@@ -4931,33 +5432,119 @@ unique constraints correctly scoped
 
 ### Goal
 
-Move from role-name compatibility toward permission-based authorization.
+Replace global role-name compatibility with membership-scoped, permission-based business authorization.
+
+### Target Authority Model
+
+```text
+User
+  ↓
+Membership
+  ↓
+Organization
+  ↓
+Role assignment(s)
+  ↓
+Permissions / capabilities
+  ↓
+Policies
+  ↓
+resource / operation decision
+```
+
+Roles and permissions that govern tenant business data must be scoped to the relevant Membership / Organization context.
+
+A User's authority in one company must not leak into another company.
 
 ### Migration Model
 
 ```text
-
-legacy role strings
-
-       ↓
-
-compatibility mapping
-
-       ↓
-
-roles
-
-       ↓
-
-permissions
-
-       ↓
-
-Policies
-
+legacy role strings / session compatibility
+        ↓
+explicit compatibility mapping
+        ↓
+membership-scoped role assignments
+        ↓
+permissions / capabilities
+        ↓
+existing Phase 12 Policy boundaries
+        ↓
+legacy compatibility retirement
 ```
 
-Do not remove legacy role fields until callers, tests, and production accounts are migrated.
+Do not remove legacy role fields or session compatibility until callers, tests, production accounts, and policies are migrated with evidence.
+
+### Permission Design
+
+Permissions should describe business capabilities rather than page names.
+
+Candidate vocabulary may include concepts such as:
+
+```text
+employee.view
+employee.manage
+attendance.view.self
+attendance.manage
+leave.view.self
+leave.request
+leave.approve
+payroll.view.self
+payroll.manage
+task.view.assigned
+task.manage
+role.manage
+audit.view
+```
+
+The exact permission catalog must be discovered and frozen before implementation.
+
+Permission names alone do not replace:
+
+```text
+tenant scope
+resource relationship
+ownership
+operation / transition rules
+```
+
+### Policy Integration
+
+Phase 12 Policies are the intended migration seam.
+
+Phase 18 should primarily replace compatibility role checks inside centralized authorization decisions with permission evaluation, rather than rewriting every controller.
+
+Target shape:
+
+```text
+same tenant
+AND required permission
+AND allowed resource scope
+AND allowed operation / state
+        ↓
+ALLOW
+```
+
+Everything else fails closed.
+
+### Mandatory Tests
+
+```text
+role permission mapping is deterministic
+
+same permission name in another tenant does not cross tenant boundary
+
+one User may have different permissions per Membership
+
+revoked permission is effective without global-role leakage
+
+legacy compatibility and permission path agree during migration
+
+Policies deny missing permission
+
+Policies continue enforcing ownership / resource scope
+
+platform authority does not implicitly become tenant business permission
+```
 
 ---
 
