@@ -22,9 +22,9 @@
 
 **Historical pre-change HRM baseline:** 34 tests, 94 assertions, PASS
 
-**Current verified production-release baseline:** PostgreSQL 18 CI: 370 passed, 5 skipped, 1,227 assertions; Redis integration CI: 375 passed, 1,268 assertions; both PASS on `main@6d3ac83ac325d35dfed1943c9464ebecf8b5a092`.
+**Current verified production-release baseline:** Phase 11 frozen code/release `f86aee2371a27e69f33351662a8bb97df044f3c8`; local full suite: 388 passed, 5 skipped, 1,491 assertions; PostgreSQL Compatibility workflow run #76 PASS and Redis Infrastructure Integration workflow run #69 PASS on the same SHA.
 
-**Architecture contract revision:** 2026-09-26 Phase 8 production freeze + Phase 10 entry. Phase 7 and Phase 9 remain evidence-frozen; Phase 8 Transitional Dual Authentication is now `COMPLETE / PASS / FROZEN` on active production release `6d3ac83ac325d35dfed1943c9464ebecf8b5a092`, while Phase 10 is `OPEN / CURRENT` for the remaining end-to-end identity acceptance gates. This revision records implementation evidence and sequencing only. The final end-to-end architecture target, Sections 50–54, and the Production Foundation v1 definition remain unchanged.
+**Architecture contract revision:** 2026-09-30 Phase 11 production SSO hard-cutover freeze + Phase 12 entry boundary. Phases 7–11 are evidence-frozen; Phase 10 End-to-End SSO Acceptance and Phase 11 SSO Cutover are `COMPLETE / PASS / FROZEN`. Phase 12 Authorization Hardening is `NOT STARTED`. This revision records the frozen authentication/session-provenance boundary and sequencing evidence only. The final end-to-end architecture target, Sections 50–54, and the Production Foundation v1 definition remain unchanged.
 
 
 ---
@@ -331,61 +331,77 @@ The current production-release verification checkpoint is:
 
 ```text
 Laravel:                     13
-Local full suite:            313 passed
+Phase 11 frozen release:     f86aee2371a27e69f33351662a8bb97df044f3c8
+Local full suite:            388 passed
 Local skipped Redis tests:   5
-Assertions:                  923
-PostgreSQL 18 CI:            PASS
-Redis integration CI:        PASS
+Assertions:                  1,491
+PostgreSQL 18 CI:            PASS (workflow run #76)
+Redis integration CI:        PASS (workflow run #69)
 ```
 
 The test count is allowed to increase as architecture coverage increases. A reduction in previously passing behavior must be intentional, reviewed, and explained.
 
-## 3A. Current Implementation State Snapshot — 2026-09-26
+## 3A. Current Implementation State Snapshot — 2026-09-30
 
 This subsection is an implementation snapshot, not a redefinition of the final architecture.
 
 ```text
 Active production HRM application release:
-6d3ac83ac325d35dfed1943c9464ebecf8b5a092
+f86aee2371a27e69f33351662a8bb97df044f3c8
 
 Retained immediate rollback release:
-fcdffbf8462209b563e22df8d1927e1425a3173c
+40bdd7534ad25ebb659cf87cc5bf5fb2bbbedd2b
 
-Current repository main:
-6d3ac83ac325d35dfed1943c9464ebecf8b5a092
+Retained Phase 10 recovery release:
+2148988a17c326faa20fe8efdf9ffd3a34fc526e
+
+Retained historical recovery release:
+832ab4ea8847ac5c33fde0916e5dee4017a31af9
+
+Frozen shared production .env SHA-256:
+160eff19e70fecf832d31499a86108a9e593b977b9e01e086702b7fa54c68445
+
+Phase 11 frozen code baseline:
+f86aee2371a27e69f33351662a8bb97df044f3c8
 ```
 
 Current engineering phase state:
 
 ```text
-Phase 7   HRM Identity Module / Runtime Foundation        PASS / FROZEN
+Phase 7   HRM Identity Module / Runtime Foundation        COMPLETE / PASS / FROZEN
 Phase 8   Transitional Dual Authentication               COMPLETE / PASS / FROZEN
-Phase 9   Production HRM Deployment                      PASS / FROZEN
-Phase 10  End-to-End SSO Acceptance                      OPEN / CURRENT
-Phase 11+ Subsequent engineering phases                  NOT STARTED
+Phase 9   Production HRM Deployment                      COMPLETE / PASS / FROZEN
+Phase 10  End-to-End SSO Acceptance                      COMPLETE / PASS / FROZEN
+Phase 11  SSO Cutover                                    COMPLETE / PASS / FROZEN
+Phase 12  Authorization Hardening                        NOT STARTED
 ```
 
-Phase 8 production closure established a deliberately small authoritative production boundary:
+The frozen production identity/authentication boundary is now:
 
 ```text
-authoritative production HRM principal     = existing approved User #1
-authoritative Employee relationship        = Employee #1
-local HRM business role                    = Admin
-legacy/demo migration set                  = EMPTY
-production ExternalIdentity                = #2
-identity trust key                         = exact Keycloak issuer + subject
-legacy local login                         = explicitly enabled for transition
-legacy registration                        = disabled
+authoritative production HRM principal      = existing approved User #1
+authoritative Employee relationship         = existing Employee #1
+local HRM business role                     = existing Admin role
+approved Keycloak identity links            = exactly 1
+identity trust key                          = exact Keycloak issuer + subject
+production authentication authority         = Keycloak OIDC only
+local credential login                      = permanently disabled in production
+local registration/password recovery        = permanently disabled in production
+local password management                   = permanently disabled in production
+self-service profile deletion               = permanently disabled in production
+authenticated production session provenance = valid server-side OIDC session binding required
+remember-me without OIDC binding            = rejected
+transitional auth config namespace          = absent
+transitional auth environment flags         = absent
 ```
 
-The controlled identity-link dry-run, approved real link, correction/unlink dry-run, audit-gap reconciliation, positive browser authorization-code flow, local HRM authorization, and server-side `last_login_at` evidence all passed. The production Artisan operational identity is `www-data`; SSH/operator access remains `deploy`.
+Phase 11 closed the temporary dual-authentication posture without changing the permanent identity-link key or creating a second authentication backdoor. Production `GET /login` remains an SSO-only landing page; local `POST /login`, registration, password-recovery, password-confirmation/update, and self-service profile deletion are fail-closed. `GET /profile` and normal authorized business access remain available to a valid OIDC-bound production session.
 
-A production presentation defect discovered during browser acceptance made the existing `Continue with Keycloak SSO` CTA effectively white-on-white because the tracked compiled CSS artifact predated the CTA-specific Tailwind classes. The source configuration was correct. The CSS artifact was deterministically rebuilt, reviewed as an exact four-file generated-asset change, passed PostgreSQL and Redis CI, merged through PR #3, and deployed immutably as release `6d3ac83ac325d35dfed1943c9464ebecf8b5a092`. Human visual acceptance confirmed that the primary SSO CTA is now visible and routes to Keycloak.
+The Phase 11 final browser acceptance used a fresh real Keycloak-authenticated production session and proved `/profile` and `/dashboard` remained HTTP 200 before and after denied local-credential/profile-deletion probes, while `GET/POST /confirm-password`, `PUT /password`, and `DELETE /profile` returned HTTP 404. The production profile presentation contained Profile Information but no Update Password or Delete Account controls.
 
-The same browser acceptance established the current Phase 10 logout boundary: HRM logout invalidates the Laravel session, but the Keycloak realm SSO session remains active. Re-entering through the SSO CTA therefore does not require another password prompt. This is consistent with the current source and is **not** a Phase 8 regression; RP-initiated Keycloak logout remains an explicit Phase 10 acceptance item.
+Phase 11 deployment/freeze evidence also proved: exact immutable release activation, PHP-FPM and queue-worker restart, scheduler continuity, PostgreSQL/Redis runtime health, authority-state stability (`users=1`, `external_identities=1`, `remember_token nonempty=0`, configured Keycloak link count `=1`), no database migration or mutation, no severe systemd journal delta after activation, removal of the obsolete transitional environment keys, and removal of the temporary root-only pre-cleanup `.env` backup after the final freeze gates passed.
 
-Phase 9 remains frozen as the production-application-plane foundation. Later Phase 8 linking and CTA deployment did not redefine Phase 9 architecture; bounded production revalidation preserved PostgreSQL/Redis/runtime health, schema/business-data integrity, identity linkage, rollback, and immutable-release invariants.
-
+The production Artisan operational identity remains `www-data`; SSH/operator access remains `deploy`. Phase 12 must preserve the frozen Phase 11 authentication/session-provenance boundary unless a later architecture revision explicitly reopens it.
 ---
 
 # 4. Final Production Topology
@@ -3858,10 +3874,10 @@ Phase 10 is the full runtime acceptance point for the identity contract.
 
 All Phase 6 deferred Laravel/runtime gates must be closed here.
 
-### Current Entry State — 2026-09-26
+### Historical Entry State — 2026-09-26
 
 ```text
-PHASE10_STATUS = OPEN / CURRENT
+PHASE10_ENTRY_STATUS = OPEN / CURRENT (historical)
 ENTRY_PRECONDITIONS = SATISFIED
 ```
 
@@ -3892,7 +3908,7 @@ HRM Logout
 
 This is consistent with the active source: the current HRM logout controller performs local Laravel logout/session invalidation only and does not yet initiate Keycloak end-session. Administrative session termination from the Keycloak console proves that the remaining session is the IdP session, but admin-console sign-out is **not** a substitute for the required user-facing RP-initiated logout flow.
 
-Therefore Phase 10 remains open. In particular, the following acceptance work is still mandatory:
+At that point, Phase 10 remained open. In particular, the following acceptance work was still mandatory:
 
 ```text
 RP-initiated Keycloak logout
@@ -3905,7 +3921,7 @@ mutable email/profile identity stability
 business authorization denial at operation boundary
 ```
 
-No full end-to-end SSO completion claim is permitted until the Phase 10 exit criteria below are satisfied.
+No full end-to-end SSO completion claim was permitted until the Phase 10 exit criteria below were satisfied.
 
 ### Anonymous HRM access
 
@@ -4083,35 +4099,220 @@ The frozen Phase 6 production/demo Keycloak boundary and active-SSO-cookie cross
 
 Phase 10 required no database schema migration, no production identity relink, and no relaxation of Keycloak redirect/environment gates.
 
-Only Phase 11 may now change the production login authority/cutover posture.
+Phase 11 was the next authorized phase to change the production login authority/cutover posture; its final frozen state is recorded below.
 
 ---
 
 ## Phase 11 — SSO Cutover
 
+### Status
+
+**Phase 11 — COMPLETE / PASS / FROZEN**
+
+**Freeze date:** 2026-09-30
+
+```text
+FROZEN_PRODUCTION_RELEASE = f86aee2371a27e69f33351662a8bb97df044f3c8
+IMMEDIATE_ROLLBACK_RELEASE = 40bdd7534ad25ebb659cf87cc5bf5fb2bbbedd2b
+PHASE10_RECOVERY_RELEASE = 2148988a17c326faa20fe8efdf9ffd3a34fc526e
+HISTORICAL_RECOVERY_RELEASE = 832ab4ea8847ac5c33fde0916e5dee4017a31af9
+FROZEN_SHARED_ENV_SHA256 = 160eff19e70fecf832d31499a86108a9e593b977b9e01e086702b7fa54c68445
+NEXT_PHASE = PHASE 12 — AUTHORIZATION HARDENING
+NEXT_PHASE_STATUS = NOT STARTED
+```
+
 ### Goal
 
-Make Keycloak the production authentication authority.
+Make Keycloak the sole production authentication authority, remove the mutable transitional local-authentication mechanism after evidence-backed observation, and require valid OIDC provenance for every authenticated production web session.
 
-### Tasks
+### Frozen Subphase State
 
-- switch `/login` primary behavior to SSO
+```text
+11A  Cutover Discovery                         COMPLETE / PASS
+11B  Production SSO Enforcement                COMPLETE / PASS
+11C  Session Provenance Cutover                COMPLETE / PASS
+11D  Observation & Recovery                    COMPLETE / PASS
+11E  Hard Cutover Cleanup & Freeze             COMPLETE / PASS
 
-- disable local password authentication for normal production users
+11E-E1    Production predeployment guard       PASS
+11E-E2    Immutable candidate build + seal      PASS
+11E-E2.1  Shared production env cleanup         PASS
+11E-E3    Atomic production activation          PASS
+11E-E4-A  Authenticated browser acceptance      PASS
+11E-E4-B  Final production freeze               PASS
+```
 
-- retain operational recovery procedure
+### Permanent Production Authentication Invariants
 
-- remove transitional feature flag after observation period
+The frozen production behavior is:
 
-- update tests
+```text
+GET /login
+-> 200 SSO-only landing page
+
+POST /login
+-> 404
+
+local registration
+-> unavailable in production
+
+local forgot/reset password
+-> unavailable in production
+
+GET /confirm-password
+POST /confirm-password
+PUT /password
+DELETE /profile
+-> 404 in production
+
+GET /profile
+PATCH /profile
+-> remain available subject to existing authentication/authorization
+
+authenticated production session
+-> must contain valid OIDC session binding
+-> binding must resolve to the authenticated User
+-> provider must be keycloak
+-> issuer + subject fingerprint must match
+-> missing/malformed/deleted/reassigned/mismatched binding fails closed
+
+remember-me / recaller authenticated state without OIDC binding
+-> fails closed
+
+guest session without OIDC binding
+-> may reach login/OIDC initiation
+```
+
+Production session provenance validation remains server-side. The application must not synthesize a trusted binding from mutable email, username, cookies, or local User state.
+
+### Transitional Mechanism Decommissioning
+
+The observation-period controls are no longer part of the production authority model:
+
+```text
+config/auth_transition.php
+-> removed
+
+AUTH_LEGACY_LOGIN_ENABLED
+AUTH_LEGACY_REGISTRATION_ENABLED
+-> removed from tracked configuration examples
+-> removed from shared production .env
+
+auth_transition configuration namespace
+-> absent from cached production configuration
+
+AuthTransitionPolicy production decisions
+-> derived from the permanent production predicate
+-> no mutable production escape flag
+```
+
+Non-production Laravel local-authentication compatibility remains available by environment policy. This compatibility must never be interpreted as a production recovery backdoor.
+
+### CI and Candidate Evidence
+
+The final Phase 11 candidate is:
+
+```text
+f86aee2371a27e69f33351662a8bb97df044f3c8
+```
+
+Its reviewed hard-cutover patch was sealed as one commit over parent:
+
+```text
+40bdd7534ad25ebb659cf87cc5bf5fb2bbbedd2b
+```
+
+Verification evidence:
+
+```text
+local full suite                         = 388 passed, 5 skipped, 1,491 assertions
+PostgreSQL Compatibility workflow #76  = PASS
+Redis Infrastructure Integration #69   = PASS
+branch candidate CI                     = PASS
+main CI on exact candidate SHA          = PASS
+```
+
+The candidate was built from an exact Git archive, wired to shared production `.env` and storage, configured/cached in the final SHA directory, and activated by atomic `current` symlink replacement. The active release was never patched in place.
+
+### Production Activation and Final Acceptance
+
+Final production activation proved:
+
+```text
+active production release               = f86aee2371a27e69f33351662a8bb97df044f3c8
+shared production .env SHA-256          = 160eff19e70fecf832d31499a86108a9e593b977b9e01e086702b7fa54c68445
+queue size                               = 0
+failed jobs                              = 0
+users                                    = 1
+external identities                      = 1
+nonempty remember_token                  = 0
+configured approved Keycloak link        = 1
+database migration                       = NOT PERFORMED
+database mutation                        = NONE
+post-activation systemd priority 0..3    = 0
+```
+
+Real-browser acceptance with a fresh Keycloak-authenticated production session proved:
+
+```text
+/profile before denial probes       = 200
+/dashboard before denial probes     = 200
+GET /confirm-password               = 404
+POST /confirm-password              = 404
+PUT /password                       = 404
+DELETE /profile                     = 404
+/profile after denial probes        = 200
+/dashboard after denial probes      = 200
+```
+
+The production profile UI retained Profile Information while omitting Update Password and Delete Account controls.
+
+The final freeze revalidated public health, SSO-only presentation, OIDC initiation, authority-state stability, service continuity, and zero severe journal delta. The temporary root-only backup containing the pre-cleanup transitional `.env` state was then removed after all final gates passed.
+
+### Recovery Contract
+
+Recovery remains immutable-release based:
+
+```text
+normal rollback target
+-> 40bdd7534ad25ebb659cf87cc5bf5fb2bbbedd2b
+
+older retained Phase 10 recovery
+-> 2148988a17c326faa20fe8efdf9ffd3a34fc526e
+
+historical retained recovery
+-> 832ab4ea8847ac5c33fde0916e5dee4017a31af9
+```
+
+Recovery means switching to a known immutable release and restarting the required long-lived runtime. It does **not** mean re-enabling a hidden local-login flag or introducing a credential bypass.
 
 ### Exit Criteria
 
-Normal production authentication is Keycloak-only.
+Phase 11 is complete because normal production authentication is permanently Keycloak-only, authenticated production sessions require valid OIDC provenance, transitional local-authentication flags/configuration are decommissioned, production browser acceptance passed, CI passed on the frozen release SHA, and rollback remains known.
+
+Phase 11 is now an immutable architectural baseline for Phase 12.
 
 ---
 
 ## Phase 12 — Authorization Hardening
+
+### Status
+
+**Phase 12 — NOT STARTED**
+
+Phase 12 begins only from the frozen Phase 11 baseline above. Its first action is read-only authorization discovery and contract refinement; implementation must not begin by reopening authentication behavior.
+
+Phase 12 must preserve:
+
+- Keycloak-only production authentication
+- exact issuer + subject identity authority
+- valid OIDC session-binding requirement for authenticated production sessions
+- production closure of local login, registration, password recovery/management, and self-service profile deletion
+- existing approved local User / Employee relationship
+- existing production/demo identity separation
+- immutable-release deployment and evidence gates
+
+Authorization changes in this phase must remain conceptually separate from authentication. A successful Keycloak login must continue to grant no business permission by itself.
 
 ### Goal
 
