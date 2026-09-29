@@ -27,7 +27,8 @@ Route::get('/dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth', 'verified', 'role:Admin,HR Manager,Developer,Accountant,Data Entry,Animator,Marketer'])
     ->name('dashboard');
 
-Route::get('/dashboard/presence', [DashboardController::class, 'presence']);
+Route::get('/dashboard/presence', [DashboardController::class, 'presence'])
+    ->middleware(['auth', 'verified', 'role:Admin,HR Manager,Developer,Accountant,Data Entry,Animator,Marketer']);
 /**
  * Authenticated routes group
  */
