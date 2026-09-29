@@ -15,30 +15,22 @@ class AuthTransitionPolicy
 
     /**
      * Determine if legacy credential login is enabled.
-     * In production, legacy login is strictly disabled regardless of configuration.
-     * Outside production, evaluates to true only when configuration value is literal boolean true.
+     * In production, legacy login is permanently disabled.
+     * Outside production, local credential login remains enabled.
      */
     public function legacyLoginEnabled(): bool
     {
-        if ($this->isProduction()) {
-            return false;
-        }
-
-        return config('auth_transition.legacy_login_enabled') === true;
+        return ! $this->isProduction();
     }
 
     /**
      * Determine if legacy self-registration is enabled.
-     * In production, self-registration is strictly disabled regardless of configuration.
-     * Outside production, evaluates to true only when configuration value is literal boolean true.
+     * In production, self-registration is permanently disabled.
+     * Outside production, local self-registration remains enabled.
      */
     public function legacyRegistrationEnabled(): bool
     {
-        if ($this->isProduction()) {
-            return false;
-        }
-
-        return config('auth_transition.legacy_registration_enabled') === true;
+        return ! $this->isProduction();
     }
 
     /**

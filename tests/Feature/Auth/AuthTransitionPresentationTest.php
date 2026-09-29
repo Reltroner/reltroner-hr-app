@@ -11,200 +11,99 @@ class AuthTransitionPresentationTest extends TestCase
 {
     use RefreshDatabase;
 
-    /**
-     * 1. GET /login returns 200 with default configuration.
-     */
-    public function test_get_login_returns_200_by_default(): void
+    protected function tearDown(): void
     {
-        $response = $this->get('/login');
+        config(['app.env' => 'testing']);
+        $this->app['env'] = 'testing';
 
-        $response->assertOk();
+        parent::tearDown();
+    }
+
+    private function setProductionMode(): void
+    {
+        config(['app.env' => 'production']);
+        $this->app['env'] = 'production';
     }
 
     /**
-     * 2. Default login page contains the SSO CTA.
+     * Non-production: GET /login returns 200 with both SSO and local login form.
      */
-    public function test_default_login_page_contains_sso_cta(): void
+    public function test_non_production_login_page_renders_sso_and_local_form(): void
     {
         $response = $this->get('/login');
 
         $response->assertOk();
         $response->assertSee('Continue with Keycloak SSO');
-    }
-
-    /**
-     * 3. SSO CTA points to route('oidc.redirect').
-     */
-    public function test_sso_cta_points_to_oidc_redirect_route(): void
-    {
-        $response = $this->get('/login');
-
-        $response->assertOk();
         $response->assertSee(route('oidc.redirect'), escape: false);
-    }
-
-    /**
-     * 4. SSO CTA appears when legacy login is true.
-     */
-    public function test_sso_cta_appears_when_legacy_login_is_true(): void
-    {
-        config(['auth_transition.legacy_login_enabled' => true]);
-
-        $response = $this->get('/login');
-
-        $response->assertOk();
-        $response->assertSee('Continue with Keycloak SSO');
-        $response->assertSee(route('oidc.redirect'), escape: false);
-    }
-
-    /**
-     * 5. SSO CTA appears when legacy login is false.
-     */
-    public function test_sso_cta_appears_when_legacy_login_is_false(): void
-    {
-        config(['auth_transition.legacy_login_enabled' => false]);
-
-        $response = $this->get('/login');
-
-        $response->assertOk();
-        $response->assertSee('Continue with Keycloak SSO');
-        $response->assertSee(route('oidc.redirect'), escape: false);
-    }
-
-    /**
-     * 6. When legacy login is true: email input is rendered.
-     */
-    public function test_email_input_is_rendered_when_legacy_login_is_true(): void
-    {
-        config(['auth_transition.legacy_login_enabled' => true]);
-
-        $response = $this->get('/login');
-
-        $response->assertOk();
+        $response->assertSee('or continue with local account');
         $response->assertSee('name="email"', escape: false);
-    }
-
-    /**
-     * 7. When legacy login is true: password input is rendered.
-     */
-    public function test_password_input_is_rendered_when_legacy_login_is_true(): void
-    {
-        config(['auth_transition.legacy_login_enabled' => true]);
-
-        $response = $this->get('/login');
-
-        $response->assertOk();
         $response->assertSee('name="password"', escape: false);
-    }
-
-    /**
-     * 8. When legacy login is true: POST login form is rendered.
-     */
-    public function test_post_login_form_is_rendered_when_legacy_login_is_true(): void
-    {
-        config(['auth_transition.legacy_login_enabled' => true]);
-
-        $response = $this->get('/login');
-
-        $response->assertOk();
-        $response->assertSee('action="' . route('login') . '"', escape: false);
+        $response->assertSee('action="'.route('login').'"', escape: false);
         $response->assertSee('Log in');
         $response->assertSee('Remember me');
-    }
-
-    /**
-     * 9. When legacy login is true: forgot-password link is rendered.
-     */
-    public function test_forgot_password_link_is_rendered_when_legacy_login_is_true(): void
-    {
-        config(['auth_transition.legacy_login_enabled' => true]);
-
-        $response = $this->get('/login');
-
-        $response->assertOk();
-        $response->assertSee(route('password.request'), escape: false);
         $response->assertSee('Forgot your password?');
+        $response->assertSee(route('password.request'), escape: false);
+        $response->assertSee('Demo accounts:');
     }
 
     /**
-     * 10. When legacy login is false: email input is absent.
+     * Non-production: SSO CTA appears before local credentials in display order.
      */
-    public function test_email_input_is_absent_when_legacy_login_is_false(): void
+    public function test_non_production_sso_cta_appears_before_local_credentials(): void
     {
-        config(['auth_transition.legacy_login_enabled' => false]);
+        $response = $this->get('/login');
+
+        $response->assertOk();
+        $response->assertSeeInOrder([
+            'Continue with Keycloak SSO',
+            'or continue with local account',
+            'name="email"',
+            'name="password"',
+            'Log in',
+        ], escape: false);
+    }
+
+    /**
+     * Production: GET /login returns 200 with SSO CTA only.
+     */
+    public function test_production_login_page_renders_sso_cta_only(): void
+    {
+        $this->setProductionMode();
 
         $response = $this->get('/login');
 
         $response->assertOk();
+        $response->assertSee('Continue with Keycloak SSO');
+        $response->assertSee(route('oidc.redirect'), escape: false);
+
+        // Local form and controls must be strictly absent
+        $response->assertDontSee('or continue with local account');
         $response->assertDontSee('name="email"', escape: false);
-    }
-
-    /**
-     * 11. When legacy login is false: password input is absent.
-     */
-    public function test_password_input_is_absent_when_legacy_login_is_false(): void
-    {
-        config(['auth_transition.legacy_login_enabled' => false]);
-
-        $response = $this->get('/login');
-
-        $response->assertOk();
         $response->assertDontSee('name="password"', escape: false);
-    }
-
-    /**
-     * 12. When legacy login is false: POST login form is absent.
-     */
-    public function test_post_login_form_is_absent_when_legacy_login_is_false(): void
-    {
-        config(['auth_transition.legacy_login_enabled' => false]);
-
-        $response = $this->get('/login');
-
-        $response->assertOk();
-        $response->assertDontSee('action="' . route('login') . '"', escape: false);
-        $response->assertDontSee('name="remember"', escape: false);
+        $response->assertDontSee('action="'.route('login').'"', escape: false);
         $response->assertDontSee('Log in');
-    }
-
-    /**
-     * 13. When legacy login is false: forgot-password link is absent.
-     */
-    public function test_forgot_password_link_is_absent_when_legacy_login_is_false(): void
-    {
-        config(['auth_transition.legacy_login_enabled' => false]);
-
-        $response = $this->get('/login');
-
-        $response->assertOk();
-        $response->assertDontSee(route('password.request'), escape: false);
+        $response->assertDontSee('name="remember"', escape: false);
         $response->assertDontSee('Forgot your password?');
+        $response->assertDontSee(route('password.request'), escape: false);
+        $response->assertDontSee('Demo accounts:');
+        $response->assertDontSee('admin@example.com');
+        $response->assertDontSee('developer@example.com');
     }
 
     /**
-     * 14. GET /login remains 200 when legacy login is false.
+     * Production: POST /login remains rejected with 404 regardless of presentation.
      */
-    public function test_get_login_remains_200_when_legacy_login_is_false(): void
+    public function test_production_post_login_remains_rejected_with_404(): void
     {
-        config(['auth_transition.legacy_login_enabled' => false]);
-
-        $response = $this->get('/login');
-
-        $response->assertStatus(200);
-    }
-
-    /**
-     * 15. Changing presentation does not alter POST /login enforcement: legacy login false still returns 404.
-     */
-    public function test_presentation_change_does_not_alter_post_login_enforcement(): void
-    {
-        config(['auth_transition.legacy_login_enabled' => false]);
+        $this->setProductionMode();
 
         $user = User::factory()->create([
             'password' => Hash::make('password'),
         ]);
 
-        $response = $this->post('/login', [
+        $csrfToken = 'csrf-test-token';
+        $response = $this->withSession(['_token' => $csrfToken])->post('/login', [
+            '_token' => $csrfToken,
             'email' => $user->email,
             'password' => 'password',
         ]);
@@ -214,7 +113,7 @@ class AuthTransitionPresentationTest extends TestCase
     }
 
     /**
-     * 16. OIDC redirect route remains unchanged/available.
+     * OIDC redirect route remains unchanged and available in both environments.
      */
     public function test_oidc_redirect_route_remains_unchanged_and_available(): void
     {
@@ -228,27 +127,15 @@ class AuthTransitionPresentationTest extends TestCase
             'oidc.pkce_method' => 'S256',
         ]);
 
+        // Non-production
         $response = $this->get('/auth/keycloak/redirect');
         $response->assertStatus(302);
-        $this->assertStringContainsString('openid-connect/auth', $response->headers->get('Location'));
-    }
+        $this->assertStringContainsString('openid-connect/auth', (string) $response->headers->get('Location'));
 
-    /**
-     * 17. SSO presentation occurs before local credential presentation when legacy login is enabled.
-     */
-    public function test_sso_cta_appears_before_local_credentials_when_legacy_login_is_enabled(): void
-    {
-        config(['auth_transition.legacy_login_enabled' => true]);
-
-        $response = $this->get('/login');
-
-        $response->assertOk();
-        $response->assertSeeInOrder([
-            'Continue with Keycloak SSO',
-            'or continue with local account',
-            'name="email"',
-            'name="password"',
-            'Log in',
-        ], escape: false);
+        // Production
+        $this->setProductionMode();
+        $responseProd = $this->get('/auth/keycloak/redirect');
+        $responseProd->assertStatus(302);
+        $this->assertStringContainsString('openid-connect/auth', (string) $responseProd->headers->get('Location'));
     }
 }

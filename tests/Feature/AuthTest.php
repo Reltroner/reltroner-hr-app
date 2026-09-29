@@ -10,12 +10,6 @@ use Tests\TestCase;
 
 class AuthTest extends TestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-        config(['auth_transition.legacy_login_enabled' => true]);
-    }
-
     public function test_login_page_loads(): void
     {
         $this->get('/login')->assertStatus(200);

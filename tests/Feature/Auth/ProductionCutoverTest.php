@@ -57,8 +57,6 @@ class ProductionCutoverTest extends TestCase
     {
         config([
             'app.env' => 'production',
-            'auth_transition.legacy_login_enabled' => true,
-            'auth_transition.legacy_registration_enabled' => true,
         ]);
         $this->app['env'] = 'production';
     }
@@ -125,9 +123,9 @@ class ProductionCutoverTest extends TestCase
     }
 
     /**
-     * 1. Production with legacy-login flag true rejects valid local credentials with 404.
+     * 1. Production rejects valid local credentials with 404.
      */
-    public function test_production_with_legacy_login_flag_true_rejects_valid_local_credentials(): void
+    public function test_production_rejects_valid_local_credentials(): void
     {
         $this->setProductionMode();
 
@@ -494,7 +492,6 @@ class ProductionCutoverTest extends TestCase
     {
         config([
             'app.env' => 'testing',
-            'auth_transition.legacy_login_enabled' => true,
         ]);
         $this->app['env'] = 'testing';
 
@@ -538,8 +535,6 @@ class ProductionCutoverTest extends TestCase
         // Case A: app['env'] = production, config('app.env') = local
         config([
             'app.env' => 'local',
-            'auth_transition.legacy_login_enabled' => true,
-            'auth_transition.legacy_registration_enabled' => true,
         ]);
         $this->app['env'] = 'production';
 
@@ -553,8 +548,6 @@ class ProductionCutoverTest extends TestCase
         // Case B: app['env'] = testing, config('app.env') = production
         config([
             'app.env' => 'production',
-            'auth_transition.legacy_login_enabled' => true,
-            'auth_transition.legacy_registration_enabled' => true,
         ]);
         $this->app['env'] = 'testing';
 
@@ -568,8 +561,6 @@ class ProductionCutoverTest extends TestCase
         // Case C: outside production (testing & testing)
         config([
             'app.env' => 'testing',
-            'auth_transition.legacy_login_enabled' => true,
-            'auth_transition.legacy_registration_enabled' => true,
         ]);
         $this->app['env'] = 'testing';
 
