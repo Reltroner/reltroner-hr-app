@@ -24,7 +24,7 @@
 
 **Current verified production-release baseline:** Phase 11 frozen code/release `f86aee2371a27e69f33351662a8bb97df044f3c8`; local full suite: 388 passed, 5 skipped, 1,491 assertions; PostgreSQL Compatibility workflow run #76 PASS and Redis Infrastructure Integration workflow run #69 PASS on the same SHA.
 
-**Architecture contract revision:** 2026-10-01 Phase 12 Authorization Hardening evidence freeze. Phases 7–12 are now evidence-frozen as engineering candidates. Phase 12 is `COMPLETE / PASS / EVIDENCE-FROZEN` on final candidate SHA `449239c23109dbc56caf3de47b0b6e86b5f31a5e`, with 898 passed, 5 skipped, 2,992 assertions locally; PostgreSQL Compatibility push #97 and pull-request #98 PASS; Redis Infrastructure Integration push #90 and pull-request #91 PASS; and GitGuardian PASS on the exact same SHA. PR #9 remains OPEN / NOT MERGED with head `449239c...`, base `2e216ec...`, and clean mergeability. Production remains intentionally untouched on the frozen Phase 11 release `f86aee2371a27e69f33351662a8bb97df044f3c8`. This documentation revision records the frozen Phase 12 implementation/evidence state without pretending that the candidate application source has already been integrated into `main` or deployed to production. Sections 50–54 and the Production Foundation v1 definition remain unchanged as the long-term target.
+**Architecture contract revision:** 2026-10-01 Phase 12 Authorization Hardening evidence freeze + Redis 8 LTS runtime-upgrade requirement. Phase 12 remains `COMPLETE / PASS / EVIDENCE-FROZEN` on final candidate SHA `449239c23109dbc56caf3de47b0b6e86b5f31a5e`; its source, authorization contract, and evidence are not reopened by the Redis upgrade. A new isolated Phase 12.5 targets Redis Open Source `8.2.10` (8.2 LTS/Extended line) for CI and production runtime, preserving the frozen Redis networking, authentication, logical DB, memory, persistence, Laravel connection, PostgreSQL 18, Keycloak, SSO, authorization, and deployment boundaries. PR #9 remains OPEN / NOT MERGED and production remains intentionally on the frozen Phase 11 application release until explicit integration/deployment work occurs. Sections 50–54 remain the long-term target.
 
 
 ---
@@ -385,6 +385,7 @@ Phase 12C-5 Task Authorization                            COMPLETE / PASS / EVID
 Phase 12C-6 Employee / Role Mutation Boundaries           COMPLETE / PASS / EVIDENCE-FROZEN
 Phase 12C-7 Public Exposure + Authorization Surface       COMPLETE / PASS / EVIDENCE-FROZEN
 Phase 12C-8 Full Authorization Regression / Acceptance    COMPLETE / PASS / EVIDENCE-FROZEN
+Phase 12.5   Redis 8 LTS Runtime Upgrade                  IN PROGRESS / ISOLATED INFRA CHANGE
 ```
 
 Phase 12 final engineering candidate:
@@ -5262,6 +5263,141 @@ Phase 18 membership-scoped permission-based RBAC
 ```
 
 The Phase 12 Policies and middleware boundaries are now the extension seams for those later phases.
+
+---
+
+## Phase 12.5 — Redis 8 LTS Runtime Upgrade
+
+### Status
+
+**Phase 12.5 — IN PROGRESS / ISOLATED INFRASTRUCTURE CHANGE**
+
+This phase was introduced after the Phase 12 authorization evidence freeze. It must not rewrite, reopen, or weaken any Phase 12 application authorization behavior.
+
+### Target Version
+
+Production and Redis integration CI target:
+
+```text
+Redis Open Source 8.2 LTS / Extended line
+exact initial target: 8.2.10
+```
+
+The exact patch may advance only within the Redis 8.2 LTS/Extended line after explicit security/compatibility review. Do not silently move to an STS/standard Redis 8.x minor merely because a newer minor exists.
+
+### Frozen Boundaries
+
+The Redis major-version upgrade must preserve:
+
+```text
+localhost-only Redis network binding
+no public 6379 exposure
+protected mode
+authenticated access
+existing REDIS_PASSWORD contract
+AOF persistence
+appendfsync everysec
+256 MiB maxmemory unless evidence requires a separate reviewed change
+noeviction policy
+logical DB mapping:
+  default -> DB 0
+  cache   -> DB 1
+  queue   -> DB 2
+  session -> DB 3
+phpredis client contract
+Laravel cache/session/queue configuration
+PostgreSQL 18
+Keycloak/OIDC behavior
+Phase 11 production authentication boundary
+Phase 12 authorization boundary
+Nginx/TLS topology
+queue failure persistence contract
+failed_jobs database persistence
+immutable application release model
+```
+
+A Redis upgrade must not be used as justification to alter application business schema, authorization Policies, OIDC identity logic, tenant design, or unrelated services.
+
+### Compatibility Policy
+
+Redis 7 -> Redis 8 is a major-version change and must be treated as a compatibility migration even when current Laravel usage relies only on stable cache/session/queue primitives.
+
+Required sequence:
+
+```text
+read-only production discovery
+        ↓
+freeze exact Redis 7 runtime/config/package state
+        ↓
+review Redis 8 breaking changes
+        ↓
+prove Redis 8.2.10 in CI with authenticated Redis
+        ↓
+run full PostgreSQL + Redis-enabled application suite
+        ↓
+verify phpredis compatibility
+        ↓
+freeze config/persistence backup + rollback procedure
+        ↓
+upgrade during controlled maintenance
+        ↓
+verify Redis version + auth + network + persistence
+        ↓
+restart/revalidate queue workers where required
+        ↓
+application cache/session/queue smoke
+        ↓
+production observation
+        ↓
+evidence freeze
+```
+
+### Dependency Upgrade Rule
+
+Do not upgrade PHP, Laravel, PostgreSQL, Keycloak, Nginx, Composer packages, or the `phpredis` extension merely for version symmetry.
+
+A dependency may be upgraded only if Redis 8.2 compatibility evidence demonstrates it is required. Such a change must be the minimum compatible version change and must receive its own targeted and regression evidence.
+
+### Rollback Rule
+
+Before production cutover, retain a deterministic rollback path to the previous Redis 7 runtime package/configuration and preserve a recoverable Redis persistence backup/snapshot compatible with the rollback plan.
+
+No production upgrade is accepted without:
+
+```text
+pre-upgrade package/version evidence
+pre-upgrade config hashes or safe structural evidence
+persistence health evidence
+backup/rollback evidence
+post-upgrade Redis 8.2.x version evidence
+NOAUTH/PONG authentication evidence
+localhost binding evidence
+AOF health evidence
+Laravel cache/session/queue evidence
+full application regression evidence
+no unrelated service/config drift
+```
+
+### Phase 12.5 Exit Criteria
+
+```text
+Redis integration CI pinned to approved Redis 8.2.x patch        PASS
+authenticated Redis integration tests                            PASS
+full Redis-enabled suite                                         PASS
+PostgreSQL compatibility                                         PASS
+phpredis compatibility                                           PASS
+production Redis discovery                                       PASS
+Redis 7 -> 8 breaking-change review                              PASS
+backup + rollback rehearsal/evidence                             PASS
+production Redis upgraded to approved Redis 8.2.x                PASS
+network/auth/memory/persistence invariants preserved              PASS
+cache/session/queue production smoke                             PASS
+Phase 11 authentication invariants unchanged                     PASS
+Phase 12 authorization invariants unchanged                      PASS
+exact infrastructure evidence frozen                             PASS
+```
+
+Phase 12.5 does not change the completion status or exact evidence SHA of Phase 12.
 
 ---
 
