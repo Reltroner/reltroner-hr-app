@@ -343,6 +343,42 @@ Redis 8 logs prove configuration and Redis 7 persistence loading succeeded befor
 
 The remediation must preserve `redis.conf` and introduce a local systemd drop-in that restores the existing `--supervised systemd --daemonize no` invocation semantics. This drop-in is a compatibility seam for the Redis package transition, not a new application architecture.
 
+### Phase 12.5D-2F Supervision Compatibility Validation
+
+```text
+PHASE_12_5D2F_SUPERVISION_COMPAT_PASS
+
+drop-in:
+/etc/systemd/system/redis-server.service.d/reltroner-supervision.conf
+
+drop-in SHA-256:
+359a6052635e45d97a978ad1197d65159e9eb5ccef797f502b99661135cd5f8a
+
+effective Redis service command:
+/usr/bin/redis-server /etc/redis/redis.conf --supervised systemd --daemonize no
+
+exact Redis 8.2.10 transient Type=notify:
+PASS
+
+Redis 8 authenticated PING:
+PONG
+
+Redis 7 controlled restart through drop-in:
+PASS
+
+Redis 7 after compatibility validation:
+7.0.15
+AOF healthy
+configuration unchanged
+Laravel default/cache/queue/session PASS
+queue active
+application online
+Redis packages held
+```
+
+The retry of the production Redis 8 cutover may now proceed with the drop-in treated as part of the rollback and production service baseline.
+
+
 
 
 
