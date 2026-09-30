@@ -378,6 +378,69 @@ Redis packages held
 
 The retry of the production Redis 8 cutover may now proceed with the drop-in treated as part of the rollback and production service baseline.
 
+### Phase 12.5D-2 Retry #2 Successful Production Cutover
+
+```text
+PHASE_12_5D2_RETRY2_REDIS8_CUTOVER_PASS
+
+redis-server:
+6:8.2.10-1rl1~noble1
+
+redis-tools:
+6:8.2.10-1rl1~noble1
+
+runtime:
+8.2.10
+
+PID:
+305395
+
+systemd:
+Result=success
+
+effective ExecStart:
+/usr/bin/redis-server /etc/redis/redis.conf --supervised systemd --daemonize no
+
+drop-in SHA-256:
+359a6052635e45d97a978ad1197d65159e9eb5ccef797f502b99661135cd5f8a
+
+production config:
+byte-identical to frozen Redis 7 baseline
+
+security/runtime:
+unauthenticated PING -> NOAUTH
+authenticated PING -> PONG
+loopback-only listener
+protected-mode yes
+maxmemory 256 MiB
+noeviction
+
+persistence:
+appendonly yes
+appendfsync everysec
+loading=0
+RDB status ok
+AOF rewrite/write status ok
+Redis 7 -> Redis 8 cross-version data probes PASS
+
+application:
+Laravel default/cache/queue/session PASS
+queue active
+maintenance OFF
+application release unchanged
+
+APT:
+redis-server held
+redis-tools held
+no unrelated package upgrade
+
+fresh cutover backup:
+/var/backups/reltroner/redis8-cutover-retry2-20260930T234422Z
+```
+
+The production runtime is now Redis 8.2.10. Phase 12.5E remains the final read-only acceptance/freeze step.
+
+
 
 
 
