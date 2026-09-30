@@ -385,7 +385,7 @@ Phase 12C-5 Task Authorization                            COMPLETE / PASS / EVID
 Phase 12C-6 Employee / Role Mutation Boundaries           COMPLETE / PASS / EVIDENCE-FROZEN
 Phase 12C-7 Public Exposure + Authorization Surface       COMPLETE / PASS / EVIDENCE-FROZEN
 Phase 12C-8 Full Authorization Regression / Acceptance    COMPLETE / PASS / EVIDENCE-FROZEN
-Phase 12.5   Redis 8 LTS Runtime Upgrade                  IN PROGRESS / ISOLATED INFRA CHANGE
+Phase 12.5   Redis 8 LTS Runtime Upgrade                  IN PROGRESS / 12.5A-B EVIDENCE-FROZEN
 ```
 
 Phase 12 final engineering candidate:
@@ -5351,6 +5351,39 @@ production application release                f86aee2371a27e69f33351662a8bb97df0
 This evidence shows no requirement to upgrade Laravel, PHP, phpredis, Composer dependencies, PostgreSQL, Keycloak, application Redis configuration, authorization source, or business schema merely to support Redis 8.2.10.
 
 The production package source must change from Ubuntu Noble's Redis 7 package to the official Redis APT repository before Redis 8.2 can be installed. That package-source change and the Redis service upgrade remain separately gated by backup/rollback evidence and controlled production acceptance.
+
+### Phase 12.5B Rollback / Backup Evidence Freeze
+
+Phase 12.5B completed before any Redis package-source or service upgrade.
+
+```text
+status                                      COMPLETE / PASS / EVIDENCE-FROZEN
+backup root                                 /var/backups/reltroner/redis8-upgrade-20260930T225042Z
+manifest files                              20
+root-only archive                           /var/backups/reltroner/redis8-upgrade-20260930T225042Z.tar.gz
+archive bytes                               1,373,850
+archive SHA-256                             325b730983273cd2b96099896885cb4dee085b47307e199e7ab65db0d28fc280
+fresh RDB validation                        PASS / checksum OK / 3 keys / 3 expires
+multipart AOF backup                        PASS
+AOF manifest                                PASS
+exact Redis 7 rollback redis-server DEB     5:7.0.15-1ubuntu0.24.04.4
+exact Redis 7 rollback redis-tools DEB      5:7.0.15-1ubuntu0.24.04.4
+config backup + hashes                      PASS
+APT configuration backup                    PASS
+systemd service-unit backup                 PASS
+AOF rewrite policy                          restored to 100
+AOF current write status                    ok
+Redis service                               active
+Redis runtime                               7.0.15 / unchanged
+Laravel default/cache/queue/session          PASS / PASS / PASS / PASS
+Redis restart                               NOT PERFORMED
+package installation                        NOT PERFORMED
+Redis APT source change                     NOT PERFORMED
+application release change                  NOT PERFORMED
+```
+
+This evidence establishes the rollback boundary required before adding the official Redis APT repository or simulating the Redis 8.2 package transition.
+
 
 ### Frozen Boundaries
 
