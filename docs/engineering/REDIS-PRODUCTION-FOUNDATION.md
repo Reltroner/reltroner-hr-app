@@ -440,6 +440,113 @@ fresh cutover backup:
 
 The production runtime is now Redis 8.2.10. Phase 12.5E remains the final read-only acceptance/freeze step.
 
+### Phase 12.5E Final Read-Only Acceptance
+
+```text
+PHASE_12_5E_FINAL_ACCEPTANCE_PASS
+
+redis-server:
+6:8.2.10-1rl1~noble1
+
+redis-tools:
+6:8.2.10-1rl1~noble1
+
+runtime:
+8.2.10
+
+PID:
+305395
+
+service:
+active
+enabled
+Result=success
+SubState=running
+
+effective service command:
+/usr/bin/redis-server /etc/redis/redis.conf --supervised systemd --daemonize no
+
+drop-in SHA-256:
+359a6052635e45d97a978ad1197d65159e9eb5ccef797f502b99661135cd5f8a
+
+base service-unit SHA-256:
+7fcea37ab4a4dbc6c292d38ee3138353d6f996f8b2c71c89e0675effe14522aa
+
+redis.conf SHA-256:
+ac7e695fe56a54e44f714dd2fbf2486f8cd4202e46096fc32d51fda256848604
+
+reltroner-production.conf SHA-256:
+605decf0ac75b787859225a4c9e398e12339a13db25a4a1b8b3b653e530d363a
+
+security:
+unauthenticated PING -> NOAUTH
+authenticated PING -> PONG
+loopback-only listener
+protected-mode yes
+
+memory:
+used 1,017,640 bytes at acceptance
+max 268,435,456 bytes
+noeviction
+headroom PASS
+
+persistence:
+loading=0
+RDB status ok
+AOF enabled
+AOF rewrite not in progress
+AOF rewrite status ok
+AOF write status ok
+appendfsync everysec
+
+PHP client:
+phpredis 6.3.0
+
+Laravel:
+default PASS
+cache PASS
+queue PASS
+session PASS
+
+queue:
+active / enabled
+
+application:
+maintenance OFF
+release unchanged
+
+APT:
+exact Redis 8.2.10 candidate preserved
+redis-server held
+redis-tools held
+
+rollback:
+final cutover backup manifest PASS
+Redis 7 rollback archive present
+
+system:
+systemd-analyze verify PASS
+post-fix journal PASS
+dpkg audit PASS
+read-only acceptance performed no mutation
+```
+
+### Phase 12.5 Closure
+
+```text
+Phase 12.5 — Redis 8 LTS Runtime Upgrade
+COMPLETE / PASS / EVIDENCE-FROZEN
+
+Production Redis:
+8.2.10
+
+Exact package:
+6:8.2.10-1rl1~noble1
+```
+
+The Redis 7 rollback archive and successful-cutover backup are retained after phase closure. The supervision drop-in is an accepted production infrastructure contract and must remain present unless a future migration explicitly replaces the process-supervision model.
+
+
 
 
 
