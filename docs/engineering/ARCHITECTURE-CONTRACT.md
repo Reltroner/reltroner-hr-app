@@ -385,7 +385,7 @@ Phase 12C-5 Task Authorization                            COMPLETE / PASS / EVID
 Phase 12C-6 Employee / Role Mutation Boundaries           COMPLETE / PASS / EVIDENCE-FROZEN
 Phase 12C-7 Public Exposure + Authorization Surface       COMPLETE / PASS / EVIDENCE-FROZEN
 Phase 12C-8 Full Authorization Regression / Acceptance    COMPLETE / PASS / EVIDENCE-FROZEN
-Phase 12.5   Redis 8 LTS Runtime Upgrade                  IN PROGRESS / 12.5A-C EVIDENCE-FROZEN
+Phase 12.5   Redis 8 LTS Runtime Upgrade                  IN PROGRESS / 12.5A-D1 EVIDENCE-FROZEN
 ```
 
 Phase 12 final engineering candidate:
@@ -5422,6 +5422,38 @@ redis-tools  = 6:8.2.10-1rl1~noble1
 ```
 
 No unrelated package upgrade is authorized by this phase.
+
+### Phase 12.5D-1 Exact Package / Cutover Preflight Evidence Freeze
+
+Phase 12.5D-1 completed without mutating production Redis.
+
+```text
+status                                      COMPLETE / PASS / EVIDENCE-FROZEN
+exact package target                        6:8.2.10-1rl1~noble1
+redis-server DEB SHA-256                    4e31f0b18639933f4ef0a57634b8839fc27a9bc4781a35ca12224dfd3ca86b68
+redis-tools DEB SHA-256                     96d0ad2d62c6f11635e4340ed6cb5fd63ea026c6eb9c4b6d828a5545f4c12a06
+Redis 8 candidate service-unit SHA-256      7fcea37ab4a4dbc6c292d38ee3138353d6f996f8b2c71c89e0675effe14522aa
+candidate archive                           /var/backups/reltroner/redis8-candidate-20260930T231723Z.tar.gz
+candidate archive bytes                     16,926,997
+candidate archive SHA-256                   d9af267c8447bc2995ed668755dd26c346d6f1e58a3634c966ba73cc6e8f2500
+candidate manifest                          39 files / PASS
+/etc/redis/redis.conf                       dpkg conffile / local config differs from packaged config
+cutover conffile rule                       preserve local config with force-confold
+systemd service user/group                  redis / redis
+systemd ExecStart                           /usr/bin/redis-server /etc/redis/redis.conf
+package maintainer behavior                 package postinst may start/restart redis-server
+isolated Redis 8.2.10 runtime               PASS
+isolated unauthenticated PING               NOAUTH
+isolated authenticated PING                 PONG
+isolated data roundtrip                     PASS
+isolated AOF                                enabled / PASS
+production Redis after preflight            7.0.15 / PID 289706 / unchanged
+production Laravel default/cache/queue/session PASS / PASS / PASS / PASS
+application release                         unchanged
+```
+
+Phase 12.5D-2 is the first authorized production binary mutation. It must preserve the existing Redis configuration, upgrade only redis-server + redis-tools to the exact pinned package version, validate persistence/network/auth/application behavior, and retain immediate rollback capability.
+
 
 
 
