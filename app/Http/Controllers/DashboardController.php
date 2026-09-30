@@ -2,22 +2,34 @@
 // app/Http/Controllers/DashboardController.php
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
-use App\Models\Employee;
 use App\Models\Department;
+use App\Models\Employee;
 use App\Models\Payroll;
 use App\Models\Presence;
 use App\Models\Task;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 
 class DashboardController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
+        Gate::authorize('viewAny', Task::class);
+
         $employees = Employee::count();
         $departments = Department::count();
         $payrolls = Payroll::count();
         $presences = Presence::count();
-        $tasks = Task::all();
+
+        if (Gate::allows('viewAll', Task::class)) {
+            $tasks = Task::all();
+        } else {
+            $tasks = Task::where(
+                'assigned_to',
+                $request->user()->employee_id
+            )->get();
+        }
+
         return view('dashboard.index', compact('employees', 'departments', 'payrolls', 'presences', 'tasks'));
     }
 
