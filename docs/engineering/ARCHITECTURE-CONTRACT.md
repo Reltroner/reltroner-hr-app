@@ -24,7 +24,7 @@
 
 **Current verified production-release baseline:** Phase 11 frozen code/release `f86aee2371a27e69f33351662a8bb97df044f3c8`; local full suite: 388 passed, 5 skipped, 1,491 assertions; PostgreSQL Compatibility workflow run #76 PASS and Redis Infrastructure Integration workflow run #69 PASS on the same SHA.
 
-**Architecture contract revision:** 2026-09-30 Phase 11 production SSO hard-cutover freeze + Phase 12 SME production-authorization refinement. Phases 7–11 are evidence-frozen; Phase 10 End-to-End SSO Acceptance and Phase 11 SSO Cutover are `COMPLETE / PASS / FROZEN`. Phase 12 Authorization Hardening is `IN PROGRESS`. Phase 12A Authorization Discovery and Phase 12B Architecture Contract Refinement are frozen. Phase 12C-1 Dashboard Presence + middleware-enabled RBAC baseline is evidence-frozen on candidate SHA `07c9ed1029fb6aa7dde04bd362d834278c735fce`, while application source on `main` remains at the pre-integration baseline until PR integration. Phase 12R adds the production authorization contract required for a multi-user, multi-company SME HRM product before Phase 12C-2 domain authorization continues. This revision is documentation-only and does not merge application source or weaken the final end-to-end architecture target, Sections 50–54, or the Production Foundation v1 definition.
+**Architecture contract revision:** 2026-10-01 Phase 12 Authorization Hardening evidence freeze. Phases 7–12 are now evidence-frozen as engineering candidates. Phase 12 is `COMPLETE / PASS / EVIDENCE-FROZEN` on final candidate SHA `449239c23109dbc56caf3de47b0b6e86b5f31a5e`, with 898 passed, 5 skipped, 2,992 assertions locally; PostgreSQL Compatibility push #97 and pull-request #98 PASS; Redis Infrastructure Integration push #90 and pull-request #91 PASS; and GitGuardian PASS on the exact same SHA. PR #9 remains OPEN / NOT MERGED with head `449239c...`, base `2e216ec...`, and clean mergeability. Production remains intentionally untouched on the frozen Phase 11 release `f86aee2371a27e69f33351662a8bb97df044f3c8`. This documentation revision records the frozen Phase 12 implementation/evidence state without pretending that the candidate application source has already been integrated into `main` or deployed to production. Sections 50–54 and the Production Foundation v1 definition remain unchanged as the long-term target.
 
 
 ---
@@ -341,7 +341,7 @@ Redis integration CI:        PASS (workflow run #69)
 
 The test count is allowed to increase as architecture coverage increases. A reduction in previously passing behavior must be intentional, reviewed, and explained.
 
-## 3A. Current Implementation State Snapshot — 2026-09-30
+## 3A. Current Implementation State Snapshot — 2026-10-01
 
 This subsection is an implementation snapshot, not a redefinition of the final architecture.
 
@@ -368,20 +368,67 @@ f86aee2371a27e69f33351662a8bb97df044f3c8
 Current engineering phase state:
 
 ```text
-Phase 7    HRM Identity Module / Runtime Foundation       COMPLETE / PASS / FROZEN
-Phase 8    Transitional Dual Authentication              COMPLETE / PASS / FROZEN
-Phase 9    Production HRM Deployment                     COMPLETE / PASS / FROZEN
-Phase 10   End-to-End SSO Acceptance                     COMPLETE / PASS / FROZEN
-Phase 11   SSO Cutover                                   COMPLETE / PASS / FROZEN
-Phase 12   Authorization Hardening                       IN PROGRESS
-Phase 12A  Authorization Discovery                       COMPLETE / PASS
-Phase 12B  Architecture Contract Refinement              COMPLETE / PASS / FROZEN
-Phase 12C-1 Dashboard Presence + RBAC Baseline           COMPLETE / PASS / FROZEN*
-Phase 12R  SME Production Authorization Refinement       COMPLETE / PASS / FROZEN
-Phase 12C-2+ Domain Authorization Implementation         NOT STARTED
-
-* Phase 12C-1 is evidence-frozen on candidate SHA `07c9ed1029fb6aa7dde04bd362d834278c735fce`; this status does not imply that candidate application source has already been integrated into `main`.
+Phase 7     HRM Identity Module / Runtime Foundation       COMPLETE / PASS / FROZEN
+Phase 8     Transitional Dual Authentication              COMPLETE / PASS / FROZEN
+Phase 9     Production HRM Deployment                     COMPLETE / PASS / FROZEN
+Phase 10    End-to-End SSO Acceptance                     COMPLETE / PASS / FROZEN
+Phase 11    SSO Cutover                                   COMPLETE / PASS / FROZEN
+Phase 12    Authorization Hardening                       COMPLETE / PASS / EVIDENCE-FROZEN
+Phase 12A   Authorization Discovery                       COMPLETE / PASS
+Phase 12B   Architecture Contract Refinement              COMPLETE / PASS / FROZEN
+Phase 12C-1 Dashboard Presence + RBAC Baseline            COMPLETE / PASS / FROZEN
+Phase 12R   SME Production Authorization Refinement       COMPLETE / PASS / FROZEN
+Phase 12C-2 Payroll Authorization                         COMPLETE / PASS / EVIDENCE-FROZEN
+Phase 12C-3 Leave Authorization                           COMPLETE / PASS / EVIDENCE-FROZEN
+Phase 12C-4 Attendance / Presence Authorization           COMPLETE / PASS / EVIDENCE-FROZEN
+Phase 12C-5 Task Authorization                            COMPLETE / PASS / EVIDENCE-FROZEN
+Phase 12C-6 Employee / Role Mutation Boundaries           COMPLETE / PASS / EVIDENCE-FROZEN
+Phase 12C-7 Public Exposure + Authorization Surface       COMPLETE / PASS / EVIDENCE-FROZEN
+Phase 12C-8 Full Authorization Regression / Acceptance    COMPLETE / PASS / EVIDENCE-FROZEN
 ```
+
+Phase 12 final engineering candidate:
+
+```text
+final candidate SHA:
+449239c23109dbc56caf3de47b0b6e86b5f31a5e
+
+candidate parent:
+6dd7c5da09d6fe51f4c51662df34e3ddbec9ad51
+
+cross-domain authorization acceptance:
+602 passed / 1,939 assertions
+
+full local suite:
+898 passed / 5 skipped / 2,992 assertions
+
+PostgreSQL Compatibility:
+push #97 PASS
+pull_request #98 PASS
+
+Redis Infrastructure Integration:
+push #90 PASS
+pull_request #91 PASS
+
+GitGuardian:
+PASS
+
+PR #9:
+OPEN / NOT MERGED
+head = 449239c23109dbc56caf3de47b0b6e86b5f31a5e
+base = 2e216ec75726d40a3b14a03d98176f589780cc7f
+mergeable = true
+mergeable_state = clean
+draft = false
+
+production deployment:
+NOT PERFORMED
+
+active production release remains:
+f86aee2371a27e69f33351662a8bb97df044f3c8
+```
+
+The Phase 12 evidence freeze describes the implementation candidate and CI state. It does not imply that PR #9 has been merged into `main` or that production has been cut over to the Phase 12 candidate.
 
 The frozen production identity/authentication boundary is now:
 
@@ -408,7 +455,7 @@ The Phase 11 final browser acceptance used a fresh real Keycloak-authenticated p
 
 Phase 11 deployment/freeze evidence also proved: exact immutable release activation, PHP-FPM and queue-worker restart, scheduler continuity, PostgreSQL/Redis runtime health, authority-state stability (`users=1`, `external_identities=1`, `remember_token nonempty=0`, configured Keycloak link count `=1`), no database migration or mutation, no severe systemd journal delta after activation, removal of the obsolete transitional environment keys, and removal of the temporary root-only pre-cleanup `.env` backup after the final freeze gates passed.
 
-The production Artisan operational identity remains `www-data`; SSH/operator access remains `deploy`. Phase 12 must preserve the frozen Phase 11 authentication/session-provenance boundary unless a later architecture revision explicitly reopens it.
+The production Artisan operational identity remains `www-data`; SSH/operator access remains `deploy`. Phase 12 preserved the frozen Phase 11 authentication/session-provenance boundary. Later phases must continue to preserve it unless a future architecture revision explicitly reopens that boundary.
 ---
 
 # 4. Final Production Topology
@@ -1820,52 +1867,41 @@ Index query filtering and record-level policy checks must agree.
 
 ---
 
-# 27. Current Security Risks to Resolve
+# 27. Security Risk Ledger
 
-Known risk candidates include:
+Security risks are tracked by disposition rather than kept forever as an undifferentiated list.
 
-- unauthenticated dashboard presence endpoint
+## Resolved / evidence-frozen through Phase 12
 
-- public employee endpoint exposing employee data
+- unauthenticated dashboard presence endpoint — **RESOLVED** by middleware-enabled RBAC boundary;
+- public employee endpoint exposing employee data — **RESOLVED** by caller discovery + endpoint removal;
+- incomplete record ownership checks in Payroll, Leave, Presence, and Task — **RESOLVED for Phase 12 covered domains** through query scoping + record Policies;
+- legacy session role priority — **RESOLVED as route privilege authority**; session role is derived presentation state only;
+- protected role update inconsistency — **RESOLVED** through Employee/Role Policy boundaries;
+- stale/unwired public employee route source — **RESOLVED** by deletion;
+- legacy RBAC tests that disabled `CheckRole` — **RESOLVED**; authorization acceptance uses real middleware and relational fixtures;
+- runtime schema mutation inside `LeaveRequestAuthorizationTest` — **RESOLVED** in Phase 12C-8;
+- MySQL-specific dashboard presence aggregation risk — **COVERED by database-portable regression and PostgreSQL compatibility gates**.
 
-- state-changing GET routes
+## Explicitly deferred / still open
 
-- GET logout
+- state-changing GET routes — **Phase 13 HTTP / CSRF hardening**;
+- GET logout compatibility route — **Phase 13 HTTP / CSRF hardening**;
+- weak long-term `users.employee_id` / single-company relationship model — **Phase 17 Organization / Membership tenancy migration**;
+- global role-name compatibility as long-term SaaS authority — **Phase 18 membership-scoped permission RBAC**;
+- application-only payroll duplicate protection / stronger database constraint review — **data-integrity work; inspect production data before constraint introduction**;
+- sensitive payroll/error logging review — **security/observability hardening**;
+- attendance date/datetime consistency beyond authorization scope — **domain/data-integrity remediation**.
 
-- incomplete record ownership checks
-
-- legacy session role priority
-
-- weak `users.employee_id` schema relationship
-
-- protected role update inconsistency
-
-- application-only payroll duplicate protection
-
-- sensitive payroll data in error logs
-
-- MySQL-specific dashboard date aggregation
-
-- attendance date/datetime inconsistency
-
-- stale/unwired route source
-
-- legacy RBAC tests that disable middleware
-
-Each should receive:
+Each unresolved item must still receive, when its assigned phase begins:
 
 ```text
-
 reproduction
-
 risk classification
-
 targeted test
-
 minimal fix
-
 regression test
-
+exact-SHA acceptance evidence
 ```
 
 ---
@@ -4305,39 +4341,75 @@ Phase 11 is now an immutable architectural baseline for Phase 12.
 
 ### Status
 
-**Phase 12 — IN PROGRESS**
+**Phase 12 — COMPLETE / PASS / EVIDENCE-FROZEN**
 
 ```text
 12A    Authorization Discovery                         COMPLETE / PASS
 12B    Architecture Contract Refinement                COMPLETE / PASS / FROZEN
-12C-1  Dashboard Presence + RBAC Baseline             COMPLETE / PASS / FROZEN*
+12C-1  Dashboard Presence + RBAC Baseline             COMPLETE / PASS / FROZEN
 12R    SME Production Authorization Refinement         COMPLETE / PASS / FROZEN
-12C-2  Payroll Reference Authorization                 NOT STARTED
-12C-3  Leave Authorization                             NOT STARTED
-12C-4  Attendance / Presence Authorization             NOT STARTED
-12C-5  Task Authorization                              NOT STARTED
-12C-6  Employee / Role Mutation Boundaries             NOT STARTED
-12C-7  Public Exposure + Authorization Surface         NOT STARTED
-12C-8  Full Authorization Regression / Acceptance      NOT STARTED
+12C-2  Payroll Reference Authorization                 COMPLETE / PASS / EVIDENCE-FROZEN
+12C-3  Leave Authorization                             COMPLETE / PASS / EVIDENCE-FROZEN
+12C-4  Attendance / Presence Authorization             COMPLETE / PASS / EVIDENCE-FROZEN
+12C-5  Task Authorization                              COMPLETE / PASS / EVIDENCE-FROZEN
+12C-6  Employee / Role Mutation Boundaries             COMPLETE / PASS / EVIDENCE-FROZEN
+12C-7  Public Exposure + Authorization Surface         COMPLETE / PASS / EVIDENCE-FROZEN
+12C-8  Full Authorization Regression / Acceptance      COMPLETE / PASS / EVIDENCE-FROZEN
 ```
 
-`*` Phase 12C-1 is evidence-frozen on implementation candidate:
+### Phase 12 Evidence Freeze
+
+The final Phase 12 implementation candidate is:
 
 ```text
-07c9ed1029fb6aa7dde04bd362d834278c735fce
+449239c23109dbc56caf3de47b0b6e86b5f31a5e
 ```
 
-Evidence for that exact candidate includes:
+Evidence attached to this exact candidate chain:
 
 ```text
-local full suite                       = 393 passed, 5 skipped, 1,497 assertions
-PostgreSQL Compatibility push run #80 = PASS
-Redis Integration push run #73        = PASS
-GitGuardian check                      = PASS
-production deployment                  = NOT PERFORMED
+Cross-domain authorization suite              602 passed / 1,939 assertions
+Full local suite                              898 passed / 5 skipped / 2,992 assertions
+PostgreSQL Compatibility push run #97         PASS
+PostgreSQL Compatibility pull-request #98     PASS
+Redis Infrastructure Integration push #90     PASS
+Redis Infrastructure Integration PR #91       PASS
+GitGuardian Security Checks                   PASS
+PR #9 head                                    449239c23109dbc56caf3de47b0b6e86b5f31a5e
+PR #9 base                                    2e216ec75726d40a3b14a03d98176f589780cc7f
+PR #9 state                                   OPEN / NOT MERGED
+PR #9 mergeability                            true / clean
+Production deployment                         NOT PERFORMED
 ```
 
-The application source on `main` remains at the pre-integration baseline until the implementation PR is integrated. This contract records the evidence-frozen candidate without pretending that the application source has already landed on `main`.
+The final one-file Phase 12C-8 hygiene commit has parent:
+
+```text
+6dd7c5da09d6fe51f4c51662df34e3ddbec9ad51
+```
+
+and modifies only:
+
+```text
+tests/Feature/LeaveRequestAuthorizationTest.php
+```
+
+The accepted fixture removed runtime schema mutation and preserved real-schema authorization behavior. The final accepted fixture SHA-256 is:
+
+```text
+03046a428dc1058529656b50cae10d5cf7f96422773b120bc8d8bccf81418166
+```
+
+Important state boundary:
+
+```text
+Phase 12 engineering implementation/evidence = FROZEN
+PR #9 integration into main                  = NOT YET PERFORMED
+Phase 12 production deployment               = NOT PERFORMED
+active production release                    = Phase 11 f86aee2371...
+```
+
+This contract records the candidate truth without conflating engineering completion, repository integration, and production deployment.
 
 ### Product Requirement Refinement
 
@@ -4404,35 +4476,56 @@ Read-only discovery established the current authorization surface.
 
 The original Phase 12 baseline registered `/dashboard/presence` independently without the same authorization boundary. Phase 12C-1 corrected that on candidate SHA `07c9ed1029fb6aa7dde04bd362d834278c735fce`.
 
-The active `/api/public-employees` route remains a Phase 12 authorization-surface concern and requires an explicit bounded disposition after caller discovery.
+Phase 12C-7 completed caller and runtime discovery for `/api/public-employees`.
 
-The repository also contains:
+Evidence established:
 
 ```text
-routes/api/public-employees.php
+repository application caller                = none found
+retained production Nginx access-log hits    = 0
+active runtime source                        = routes/web.php
+tracked routes/api/public-employees.php      = stale / unwired
+approved disposition                         = REMOVE
 ```
 
-but tracked route source and actually registered runtime route must remain distinguished before modification or deletion.
+The active unauthenticated route was removed from the Phase 12 candidate, the stale unwired route source was deleted, and runtime route registration no longer contains `api/public-employees`.
+
+No replacement public employee-directory API was introduced. Any future employee-directory capability must be deliberately authenticated, bounded, tenant-aware, and minimum-exposure by design.
 
 #### Legacy authorization authority
 
-Current business authorization still depends on compatibility state including:
+Phase 12C-7 hardened `CheckRole` so current-request business-role authority is now:
 
 ```text
-CheckRole
-session('role')
-session('employee_id')
-User -> Employee
-Employee -> Role
-users.role
-users.employee_id
+Authenticated User
+        ↓
+Employee relationship
+        ↓
+Role relationship
+        ↓
+Role.title
+        ↓
+declared middleware role set
+        ↓
+ALLOW / DENY
 ```
 
-Phase 12 may harden authorization around this compatibility model.
+The following are no longer privilege inputs to `CheckRole`:
 
-Phase 12 must not silently replace it with the Phase 18 permission model.
+```text
+session('role')
+session('employee_id')
+users.role / $user->role
+User::effectiveRole()
+User::hasRoleName()
+Spatie hasRole fallback
+```
 
-Legacy role/session state is a compatibility mechanism, not the final SaaS authorization architecture.
+`session('role')` and `session('employee_id')` remain as derived compatibility/presentation state and are synchronized from the authoritative Employee relationship. They do not decide privilege.
+
+Missing Employee, missing Employee Role, blank/unsupported role context, and a role middleware declaration with no allowed roles fail closed.
+
+Phase 12 intentionally did not delete legacy model helpers or schema compatibility fields merely because they are no longer route-authority inputs. Their eventual retirement remains explicit migration work, and the Phase 18 permission model remains the long-term replacement for role-name compatibility.
 
 #### Existing test weakness and Phase 12C-1 remediation
 
@@ -4452,20 +4545,36 @@ Authorization tests must continue to exercise real middleware and real authority
 
 #### Business Policy state
 
-Phase 12A did not establish existing Laravel business-record Policies for:
+Phase 12 established centralized Laravel business-record Policies for:
 
 ```text
-Employee
-Payroll
-LeaveRequest
-Presence
-Task
-Role
+PayrollPolicy
+LeaveRequestPolicy
+PresencePolicy
+TaskPolicy
+EmployeePolicy
+RolePolicy
 ```
 
-Phase 12 domain hardening may introduce Policies where they are the smallest safe mechanism for centralized record/action authorization.
+These Policies use strict relational business authority rather than session-role or `users.role` fallback authority.
 
-Authentication-transition policy and HRM business authorization policy are separate concepts.
+The current compatibility model is intentionally:
+
+```text
+User
+  ↓
+Employee
+  ↓
+Role.title
+  ↓
+Policy decision
+  ↓
+resource / operation authorization
+```
+
+Index/query scope and record-level Policy decisions were regression-tested together for the covered domains.
+
+Authentication-transition policy and HRM business authorization policy remain separate concepts.
 
 ---
 
@@ -4736,34 +4845,48 @@ The `Employee` model remains a business/personnel entity; it is not automaticall
 
 ### Phase 12 Scope and Sequencing
 
-Current sequence:
+Completed sequence:
 
 ```text
 12C-1 Dashboard Presence + real RBAC baseline
-      COMPLETE / PASS / FROZEN on candidate 07c9ed1...
+      COMPLETE / PASS / FROZEN
+      candidate: 07c9ed1029fb6aa7dde04bd362d834278c735fce
 
 12R   SME Production Authorization Refinement
-      COMPLETE / PASS / FROZEN by this contract revision
+      COMPLETE / PASS / FROZEN
 
 12C-2 Payroll Authorization
-      reference implementation for the production authorization pattern
+      COMPLETE / PASS / EVIDENCE-FROZEN
+      candidate: 3add4a215360d4e3fdd397ae280ac0da99914147
 
 12C-3 Leave Authorization
+      COMPLETE / PASS / EVIDENCE-FROZEN
+      candidate: dbfaf569e16e5a634761fa77c3188b85e37a0fc2
 
 12C-4 Attendance / Presence Authorization
+      COMPLETE / PASS / EVIDENCE-FROZEN
+      candidate: 5a562b81e062e59107974497fddc1e84ba7240e9
 
 12C-5 Task Authorization
+      COMPLETE / PASS / EVIDENCE-FROZEN
+      candidate: cbc57392a06074fad97fab308a8143708e6cd268
 
 12C-6 Employee / Role Mutation Boundaries
+      COMPLETE / PASS / EVIDENCE-FROZEN
+      candidate: 2ae04154331ead12dd4018749836be302195e686
 
 12C-7 Public Exposure + Authorization Surface Hardening
+      COMPLETE / PASS / EVIDENCE-FROZEN
+      candidate: 6dd7c5da09d6fe51f4c51662df34e3ddbec9ad51
 
 12C-8 Full Authorization Regression / Acceptance
+      COMPLETE / PASS / EVIDENCE-FROZEN
+      final candidate: 449239c23109dbc56caf3de47b0b6e86b5f31a5e
 ```
 
-Do not combine unrelated domains into one uncontrolled patch.
+The domain units remained intentionally separated so each authorization boundary could receive discovery, targeted RED/GREEN evidence, related regression, full-suite evidence, and exact-SHA CI before the final cross-domain acceptance.
 
-Payroll is intentionally the first record-level reference implementation so subsequent domains can follow a reviewed and tested enforcement pattern.
+Payroll served as the first record-level reference implementation; later domains followed the same reviewed server-side authorization pattern.
 
 ---
 
@@ -4869,25 +4992,33 @@ Future tenant administration must never imply authority over another organizatio
 
 ---
 
-### Public Employee Endpoint Direction
+### Public Employee Endpoint Disposition
 
-The active unauthenticated employee endpoint must receive an explicit disposition:
+Phase 12C-7 completed the required caller discovery before changing the endpoint.
+
+Evidence:
 
 ```text
-remove
-or
-protect
-or
-replace with a deliberately bounded authenticated endpoint
+repository application caller             = NONE FOUND
+retained production access-log hits        = 0
+bounded replacement requirement            = NONE ESTABLISHED
 ```
 
-The decision must follow caller discovery.
+Approved disposition:
 
-Do not remove it merely because its name contains `public`.
+```text
+REMOVE
+```
 
-Required application behavior must be preserved with minimum data exposure.
+The Phase 12 candidate therefore:
 
-For a future multi-company product, an employee-directory endpoint must never become a cross-tenant enumeration surface.
+- removes the unauthenticated `GET /api/public-employees` route from `routes/web.php`;
+- removes now-unused employee/response imports associated with that route;
+- deletes stale unwired `routes/api/public-employees.php`;
+- does not register a replacement public directory API;
+- regression-tests that the endpoint returns 404 and is absent from the route collection.
+
+For a future multi-company product, any employee-directory endpoint must never become a cross-tenant enumeration surface and must be explicitly authenticated, tenant-scoped, capability-scoped, and minimum-exposure.
 
 ---
 
@@ -5083,70 +5214,54 @@ Do not rewrite or pretend earlier evidence never existed.
 
 ---
 
-### Phase 12 Exit Criteria
+### Phase 12 Exit Criteria — Final Evidence
 
-Phase 12 may be marked `COMPLETE / PASS / FROZEN` only when:
+Phase 12 exit criteria are satisfied for the frozen engineering candidate:
 
 ```text
-/dashboard/presence authorization boundary PASS
-
-middleware-enabled RBAC acceptance PASS
-
-required domain Policies / centralized authorization active
-
-payroll ownership + administration authorization PASS
-
-leave record + transition authorization PASS
-
-attendance / presence record authorization PASS
-
-task record + transition authorization PASS
-
-employee / protected-role mutation boundaries PASS
-
-active public employee exposure has approved bounded disposition
-
-deny-by-default authorization-surface review PASS
-
-direct-record bypass tests PASS
-
-sensitive-field privilege-escalation tests PASS where applicable
-
-index scope agrees with record Policy
-
-legacy role compatibility remains intentional and tested
-
-Phase 11 authentication/session-provenance invariants remain PASS
-
-full local suite PASS
-
-PostgreSQL release gate PASS
-
-Redis integration gate PASS when affected
-
-exact Git SHA known
-
-diff reviewed
-
-immutable production deployment completed when required
-
-production authorization smoke / negative acceptance PASS
-
-no unexpected database mutation
-
-rollback remains known
+/dashboard/presence authorization boundary              PASS
+middleware-enabled RBAC acceptance                       PASS
+centralized domain Policies active                       PASS
+payroll ownership + administration authorization         PASS
+leave record + transition authorization                  PASS
+attendance / presence record authorization               PASS
+task record + transition authorization                   PASS
+employee / protected-role mutation boundaries            PASS
+public employee exposure disposition                     REMOVE / PASS
+deny-by-default authorization-surface review              PASS
+direct-record bypass tests                               PASS
+sensitive-field privilege-escalation tests               PASS
+index scope agrees with record Policy                    PASS
+legacy route privilege authority hardened                PASS
+Phase 11 auth/session-provenance invariants               PASS
+authorization test runtime schema mutation               ABSENT
+cross-domain authorization suite                         602 PASS / 1,939 assertions
+full local suite                                         898 PASS / 5 SKIPPED / 2,992 assertions
+PostgreSQL Compatibility push                            #97 PASS
+PostgreSQL Compatibility pull request                    #98 PASS
+Redis Infrastructure Integration push                    #90 PASS
+Redis Infrastructure Integration pull request            #91 PASS
+GitGuardian                                              PASS
+final candidate SHA                                      449239c23109dbc56caf3de47b0b6e86b5f31a5e
+PR #9                                                    OPEN / NOT MERGED
+production deployment                                    NOT PERFORMED
+production release                                       remains Phase 11 f86aee2371...
 ```
 
-Phase 12 completion does not imply completion of:
+The five local skips are the Redis integration tests when `RUN_REDIS_INTEGRATION` is not enabled locally; the exact final candidate passed the dedicated Redis Infrastructure Integration push and pull-request workflows.
+
+Phase 12 completion is an engineering/evidence freeze, not a claim that the implementation has already been merged or deployed.
+
+The following remain intentionally outside Phase 12:
 
 ```text
 Phase 13 HTTP / CSRF hardening
 Phase 14 audit foundation
 Phase 17 multi-tenancy runtime enforcement
-Phase 18 permission-based RBAC
+Phase 18 membership-scoped permission-based RBAC
 ```
 
-But Phase 12 authorization boundaries must be intentionally designed so those later phases can extend rather than replace them.
+The Phase 12 Policies and middleware boundaries are now the extension seams for those later phases.
 
 ---
 
