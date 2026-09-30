@@ -5270,7 +5270,7 @@ The Phase 12 Policies and middleware boundaries are now the extension seams for 
 
 ### Status
 
-**Phase 12.5 — IN PROGRESS / ISOLATED INFRASTRUCTURE CHANGE**
+**Phase 12.5 — IN PROGRESS / CI COMPATIBILITY PASS / PRODUCTION NOT STARTED**
 
 This phase was introduced after the Phase 12 authorization evidence freeze. It must not rewrite, reopen, or weaken any Phase 12 application authorization behavior.
 
@@ -5284,6 +5284,44 @@ exact initial target: 8.2.10
 ```
 
 The exact patch may advance only within the Redis 8.2 LTS/Extended line after explicit security/compatibility review. Do not silently move to an STS/standard Redis 8.x minor merely because a newer minor exists.
+
+### Repository / CI Compatibility Evidence
+
+The Redis 8 upgrade is isolated on branch:
+
+```text
+infra/redis8-lts-upgrade-20261001
+```
+
+created from the frozen Phase 12 final candidate:
+
+```text
+449239c23109dbc56caf3de47b0b6e86b5f31a5e
+```
+
+Redis 8 CI candidate:
+
+```text
+cc3d99ab44be9a47130f419a95a69dff7da95c3a
+ci(redis): validate Redis 8.2.10 LTS
+```
+
+The candidate changes only the Redis integration workflow to:
+
+```text
+redis:8.2.10-alpine
+```
+
+and adds an exact runtime-version assertion.
+
+Exact-SHA CI result:
+
+```text
+Laravel on Redis 8.2 LTS & PostgreSQL 18    PASS
+Laravel on PostgreSQL 18                    PASS
+```
+
+This evidence shows no current requirement to upgrade Laravel, PHP, Composer dependencies, PostgreSQL, application Redis configuration, or business application source merely to support Redis 8.2.10. Production compatibility remains separately gated by runtime discovery and controlled upgrade evidence.
 
 ### Frozen Boundaries
 
