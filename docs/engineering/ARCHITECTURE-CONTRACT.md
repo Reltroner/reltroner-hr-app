@@ -5505,6 +5505,32 @@ The accepted remediation is an isolated systemd drop-in that restores the alread
 
 The frozen `/etc/redis/redis.conf` must remain byte-identical. No application, authentication, authorization, persistence, network, or database architecture change is authorized as part of this remediation.
 
+### Phase 12.5D-2F Systemd Supervision Compatibility Freeze
+
+The supervision remediation was validated before retrying the Redis 8 production cutover.
+
+```text
+status                                      COMPLETE / PASS / EVIDENCE-FROZEN
+exact Redis 8 Type=notify transient test    PASS
+Redis 8 transient runtime                   8.2.10
+Redis 8 authenticated PING                  PONG
+compatibility drop-in                       /etc/systemd/system/redis-server.service.d/reltroner-supervision.conf
+drop-in SHA-256                             359a6052635e45d97a978ad1197d65159e9eb5ccef797f502b99661135cd5f8a
+effective ExecStart                         /usr/bin/redis-server /etc/redis/redis.conf --supervised systemd --daemonize no
+Redis 7 restart through drop-in             PASS
+Redis 7 runtime after restart               7.0.15
+Redis config                                byte-identical
+AOF persistence                             PASS
+Laravel default/cache/queue/session         PASS / PASS / PASS / PASS
+queue worker                                ACTIVE
+application maintenance                    OFF
+redis-server / redis-tools                  HELD
+Redis 8 production package installation     NOT PERFORMED
+```
+
+The compatibility drop-in is now part of the accepted production Redis service contract for the Redis 7 -> 8 package transition. The Redis 8 cutover retry must preserve this drop-in and keep the frozen Redis configuration byte-identical.
+
+
 
 
 
