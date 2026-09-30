@@ -5299,11 +5299,14 @@ created from the frozen Phase 12 final candidate:
 449239c23109dbc56caf3de47b0b6e86b5f31a5e
 ```
 
-Redis 8 CI candidate:
+Redis 8 CI candidate chain:
 
 ```text
 cc3d99ab44be9a47130f419a95a69dff7da95c3a
 ci(redis): validate Redis 8.2.10 LTS
+
+80798a027f2c8aa5ba9d9ba57a996919e56c1ca2
+ci(redis): pin production phpredis 6.3.0
 ```
 
 The candidate changes only the Redis integration workflow to:
@@ -5314,14 +5317,40 @@ redis:8.2.10-alpine
 
 and adds an exact runtime-version assertion.
 
-Exact-SHA CI result:
+Exact-production-client CI result on `80798a027f2c8aa5ba9d9ba57a996919e56c1ca2`:
 
 ```text
-Laravel on Redis 8.2 LTS & PostgreSQL 18    PASS
-Laravel on PostgreSQL 18                    PASS
+Redis server                                  8.2.10
+PHP                                           8.4
+phpredis                                      6.3.0
+PostgreSQL                                    18
+Laravel on Redis 8.2 LTS & PostgreSQL 18     PASS
+Laravel on PostgreSQL 18                     PASS
 ```
 
-This evidence shows no current requirement to upgrade Laravel, PHP, Composer dependencies, PostgreSQL, application Redis configuration, or business application source merely to support Redis 8.2.10. Production compatibility remains separately gated by runtime discovery and controlled upgrade evidence.
+Production read-only discovery also established:
+
+```text
+production Redis                              7.0.15
+Ubuntu                                        24.04.5 LTS
+package source                                Ubuntu Noble archive/security only
+official Redis APT source                     not yet configured
+Redis listener                                127.0.0.1:6379 + ::1:6379 only
+authentication                                requirepass / default ACL principal
+custom ACL file/users                         none
+AOF                                           enabled / healthy
+appendfsync                                   everysec
+maxmemory                                     256 MiB
+maxmemory-policy                              noeviction
+active keyspace                               DB3 only / 3 expiring session keys
+Laravel default/cache/queue/session ping      PASS / PASS / PASS / PASS
+production phpredis                           6.3.0
+production application release                f86aee2371a27e69f33351662a8bb97df044f3c8
+```
+
+This evidence shows no requirement to upgrade Laravel, PHP, phpredis, Composer dependencies, PostgreSQL, Keycloak, application Redis configuration, authorization source, or business schema merely to support Redis 8.2.10.
+
+The production package source must change from Ubuntu Noble's Redis 7 package to the official Redis APT repository before Redis 8.2 can be installed. That package-source change and the Redis service upgrade remain separately gated by backup/rollback evidence and controlled production acceptance.
 
 ### Frozen Boundaries
 
