@@ -107,8 +107,14 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
-          extensions: mbstring, pdo, pdo_pgsql, pgsql, redis, pcntl
+          extensions: mbstring, pdo, pdo_pgsql, pgsql, redis-6.3.0, pcntl
           coverage: none
+
+      - name: Verify production-matched phpredis version
+        run: |
+          VERSION=$(php -r 'echo phpversion("redis") ?: "missing";')
+          echo "phpredis=$VERSION"
+          test "$VERSION" = "6.3.0"
 
       - name: Generate ephemeral application key
         run: |
