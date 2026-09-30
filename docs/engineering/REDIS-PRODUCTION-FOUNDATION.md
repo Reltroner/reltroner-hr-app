@@ -232,6 +232,61 @@ application release unchanged
 
 Phase 12.5C is evidence-frozen. The next stage is the first authorized production binary mutation and must install only the exact pinned Redis server/tools packages with immediate rollback capability.
 
+### Phase 12.5D-1 Exact Redis 8.2.10 Package Preflight
+
+```text
+PHASE_12_5D1_PACKAGE_PREFLIGHT_PASS
+
+target:
+6:8.2.10-1rl1~noble1
+
+redis-server DEB SHA-256:
+4e31f0b18639933f4ef0a57634b8839fc27a9bc4781a35ca12224dfd3ca86b68
+
+redis-tools DEB SHA-256:
+96d0ad2d62c6f11635e4340ed6cb5fd63ea026c6eb9c4b6d828a5545f4c12a06
+
+candidate service unit SHA-256:
+7fcea37ab4a4dbc6c292d38ee3138353d6f996f8b2c71c89e0675effe14522aa
+
+candidate evidence archive:
+/var/backups/reltroner/redis8-candidate-20260930T231723Z.tar.gz
+
+candidate archive SHA-256:
+d9af267c8447bc2995ed668755dd26c346d6f1e58a3634c966ba73cc6e8f2500
+
+candidate manifest:
+39 files
+
+Redis config packaging:
+/etc/redis/redis.conf is a dpkg conffile
+packaged Redis 8 config differs from Reltroner production config
+cutover must preserve existing local config
+
+candidate systemd semantics:
+User=redis
+Group=redis
+ExecStart=/usr/bin/redis-server /etc/redis/redis.conf
+
+isolated exact-package runtime:
+Redis 8.2.10 PASS
+unauthenticated PING -> NOAUTH
+authenticated PING -> PONG
+data roundtrip PASS
+AOF enabled
+clean shutdown PASS
+
+production after preflight:
+Redis 7.0.15
+PID 289706
+configuration unchanged
+application release unchanged
+Laravel default/cache/queue/session PASS
+```
+
+The exact Redis 8 production artifact is now preflighted. No production Redis binary or service mutation occurred during this stage.
+
+
 
 
 ## Production Baseline
