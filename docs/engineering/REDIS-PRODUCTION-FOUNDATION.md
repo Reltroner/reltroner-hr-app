@@ -141,6 +141,54 @@ active HRM release                 f86aee2371a27e69f33351662a8bb97df044f3c8
 
 The Phase 4 Redis 7 configuration and runtime state remain unchanged. The next production step is backup/rollback preparation before adding the official Redis APT package source or installing Redis 8.
 
+### Phase 12.5B Rollback / Backup Freeze
+
+```text
+PHASE_12_5B_ROLLBACK_BACKUP_PASS
+
+backup root:
+/var/backups/reltroner/redis8-upgrade-20260930T225042Z
+
+manifest:
+20 files / SHA-256 validation PASS
+
+rollback archive:
+/var/backups/reltroner/redis8-upgrade-20260930T225042Z.tar.gz
+
+archive bytes:
+1373850
+
+archive SHA-256:
+325b730983273cd2b96099896885cb4dee085b47307e199e7ab65db0d28fc280
+
+RDB:
+checksum PASS
+3 keys read
+3 expires
+0 already expired
+
+multipart AOF:
+base RDB + incremental AOF + manifest preserved
+
+rollback packages:
+redis-server 5:7.0.15-1ubuntu0.24.04.4
+redis-tools  5:7.0.15-1ubuntu0.24.04.4
+
+post-freeze runtime:
+Redis 7.0.15 active
+authenticated PING PONG
+default/cache/queue/session PASS
+persistent configuration unchanged
+AOF rewrite policy restored to 100
+no Redis restart
+no package install
+no Redis APT source change
+no application release change
+```
+
+Phase 12.5B is evidence-frozen. The next stage may add the official Redis APT source and perform exact Redis 8.2 package discovery/simulation, but must not install or restart Redis until that simulation is accepted.
+
+
 ## Production Baseline
 
 - Redis server: **7.0.15**
