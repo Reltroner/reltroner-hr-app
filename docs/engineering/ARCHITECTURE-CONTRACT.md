@@ -5454,6 +5454,58 @@ application release                         unchanged
 
 Phase 12.5D-2 is the first authorized production binary mutation. It must preserve the existing Redis configuration, upgrade only redis-server + redis-tools to the exact pinned package version, validate persistence/network/auth/application behavior, and retain immediate rollback capability.
 
+### Phase 12.5D-2 First Cutover Attempt — Failed Safely / Rolled Back
+
+The first production Redis 8.2.10 cutover attempt did not pass acceptance and was automatically rolled back to Redis 7.0.15.
+
+```text
+Redis 8 packages installed temporarily       6:8.2.10-1rl1~noble1
+Redis 8 package configuration                completed
+Redis 8 service activation                   FAILED
+systemd result                               protocol
+automatic rollback                           EXECUTED
+rollback redis-server                        5:7.0.15-1ubuntu0.24.04.4
+rollback redis-tools                         5:7.0.15-1ubuntu0.24.04.4
+rollback runtime                             7.0.15
+rollback authenticated PING                  PONG
+application maintenance after rollback       OFF
+queue worker after rollback                  ACTIVE
+Redis service after rollback                 ACTIVE / enabled
+Redis 7 config hashes                        restored exactly
+Redis 7 service-unit hash                    restored exactly
+AOF/RDB health                               PASS
+Laravel default/cache/queue/session           PASS / PASS / PASS / PASS
+Redis packages                               held after rollback
+application release                          unchanged
+```
+
+Root-cause forensics established that Redis 8.2.10 itself could parse the preserved production configuration and load the Redis 7 persistence files. The failure was the service-supervision boundary:
+
+```text
+preserved redis.conf:
+daemonize yes
+
+Redis 7 systemd unit:
+Type=notify
+ExecStart=/usr/bin/redis-server /etc/redis/redis.conf --supervised systemd --daemonize no
+
+Redis 8 packaged systemd unit:
+Type=notify
+ExecStart=/usr/bin/redis-server /etc/redis/redis.conf
+```
+
+During the failed Redis 8 starts, Redis loaded configuration, initialized the server, and began loading the existing AOF/RDB data, but systemd reported `result=protocol` and terminated/restarted the process repeatedly because the Redis 8 invocation did not enter systemd supervision mode.
+
+The accepted remediation is an isolated systemd drop-in that restores the already-existing Reltroner supervision semantics:
+
+```text
+--supervised systemd
+--daemonize no
+```
+
+The frozen `/etc/redis/redis.conf` must remain byte-identical. No application, authentication, authorization, persistence, network, or database architecture change is authorized as part of this remediation.
+
+
 
 
 
