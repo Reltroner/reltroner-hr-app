@@ -385,7 +385,7 @@ Phase 12C-5 Task Authorization                            COMPLETE / PASS / EVID
 Phase 12C-6 Employee / Role Mutation Boundaries           COMPLETE / PASS / EVIDENCE-FROZEN
 Phase 12C-7 Public Exposure + Authorization Surface       COMPLETE / PASS / EVIDENCE-FROZEN
 Phase 12C-8 Full Authorization Regression / Acceptance    COMPLETE / PASS / EVIDENCE-FROZEN
-Phase 12.5   Redis 8 LTS Runtime Upgrade                  IN PROGRESS / 12.5A-B EVIDENCE-FROZEN
+Phase 12.5   Redis 8 LTS Runtime Upgrade                  IN PROGRESS / 12.5A-C EVIDENCE-FROZEN
 ```
 
 Phase 12 final engineering candidate:
@@ -5383,6 +5383,46 @@ application release change                  NOT PERFORMED
 ```
 
 This evidence establishes the rollback boundary required before adding the official Redis APT repository or simulating the Redis 8.2 package transition.
+
+### Phase 12.5C APT Source / Pin / Simulation Evidence Freeze
+
+Phase 12.5C completed without installing Redis 8 or restarting Redis.
+
+```text
+status                                      COMPLETE / PASS / EVIDENCE-FROZEN
+official Redis APT source                   configured
+Redis signing key                          configured
+Redis signing key SHA-256                  6d0e38c45f40666f507fb21ccdb9a5c164efe98d551434c57cad9765ea1bd1c3
+APT source SHA-256                         bcdb03a9ea011fc2f1ab3129de0e8429a64c58b3f11011db70a8016e5e627d09
+APT pin SHA-256                            cdd32b49ba5e7f7f8c3b06d3a5e00192abd508c17c220258f09255557560d066
+exact Redis server target                  6:8.2.10-1rl1~noble1
+exact Redis tools target                   6:8.2.10-1rl1~noble1
+APT candidate                              6:8.2.10-1rl1~noble1
+pin priority                               1001
+APT install simulation                     PASS
+simulated package scope                    redis-server + redis-tools only
+dependency expansion                       NONE
+installed redis-server                     5:7.0.15-1ubuntu0.24.04.4
+installed redis-tools                      5:7.0.15-1ubuntu0.24.04.4
+Redis runtime                              7.0.15 / unchanged
+Redis PID                                  289706 / unchanged
+Redis configuration                        byte-identical to frozen baseline
+Redis persistence                          loading=0 / AOF enabled / write status ok
+Laravel default/cache/queue/session         PASS / PASS / PASS / PASS
+application release                        f86aee2371a27e69f33351662a8bb97df044f3c8 / unchanged
+Redis package install                      NOT PERFORMED
+Redis restart                              NOT PERFORMED
+```
+
+The accepted production cutover target for Phase 12.5D is therefore exactly:
+
+```text
+redis-server = 6:8.2.10-1rl1~noble1
+redis-tools  = 6:8.2.10-1rl1~noble1
+```
+
+No unrelated package upgrade is authorized by this phase.
+
 
 
 ### Frozen Boundaries
