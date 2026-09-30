@@ -286,6 +286,64 @@ Laravel default/cache/queue/session PASS
 
 The exact Redis 8 production artifact is now preflighted. No production Redis binary or service mutation occurred during this stage.
 
+### Phase 12.5D-2 First Production Cutover Attempt / Rollback
+
+```text
+cutover result:
+FAIL / AUTOMATIC ROLLBACK EXECUTED
+
+Redis 8 temporary package state:
+redis-server 6:8.2.10-1rl1~noble1
+redis-tools  6:8.2.10-1rl1~noble1
+
+failure:
+redis-server.service result=protocol
+
+post-rollback:
+redis-server 5:7.0.15-1ubuntu0.24.04.4
+redis-tools  5:7.0.15-1ubuntu0.24.04.4
+runtime 7.0.15
+authenticated PING PONG
+service active/enabled
+queue active/enabled
+application maintenance OFF
+config byte restoration PASS
+AOF/RDB health PASS
+Laravel default/cache/queue/session PASS
+
+APT safety:
+redis-server held
+redis-tools held
+```
+
+#### Root cause
+
+The frozen Redis configuration contains:
+
+```text
+daemonize yes
+pidfile /run/redis/redis-server.pid
+```
+
+The Redis 7 Ubuntu service unit compensated with:
+
+```text
+Type=notify
+ExecStart=/usr/bin/redis-server /etc/redis/redis.conf --supervised systemd --daemonize no
+```
+
+The Redis 8.2.10 package service unit changed that to:
+
+```text
+Type=notify
+ExecStart=/usr/bin/redis-server /etc/redis/redis.conf
+```
+
+Redis 8 logs prove configuration and Redis 7 persistence loading succeeded before systemd terminated the process. The service failed because the Type=notify contract no longer had the CLI override that enables Redis systemd supervision/readiness notification.
+
+The remediation must preserve `redis.conf` and introduce a local systemd drop-in that restores the existing `--supervised systemd --daemonize no` invocation semantics. This drop-in is a compatibility seam for the Redis package transition, not a new application architecture.
+
+
 
 
 
