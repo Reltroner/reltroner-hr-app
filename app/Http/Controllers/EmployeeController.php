@@ -6,18 +6,22 @@ use App\Models\Employee;
 use App\Models\Department;
 use App\Models\Role;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Gate;
 
 class EmployeeController extends Controller
 {
     public function index()
     {
+        Gate::authorize('viewAny', Employee::class);
+
         $employees = Employee::with(['department', 'role'])->latest()->get();
         return view('employees.index', compact('employees'));
     }
 
     public function create()
     {
+        Gate::authorize('create', Employee::class);
+
         $departments = Department::all();
         $roles = Role::all();
 
@@ -26,7 +30,9 @@ class EmployeeController extends Controller
 
     public function store(Request $request)
     {
-        $request->validate([
+        Gate::authorize('create', Employee::class);
+
+        $validated = $request->validate([
             'fullname'      => 'required|string|max:255',
             'email'         => 'required|email|unique:employees,email',
             'phone'         => 'required|string|max:20',
@@ -39,18 +45,22 @@ class EmployeeController extends Controller
             'salary'        => 'required|numeric|min:0',
         ]);
 
-        Employee::create($request->all());
+        Employee::create($validated);
 
         return redirect()->route('employees.index')->with('success', 'Employee created successfully.');
     }
 
     public function show(Employee $employee)
     {
+        Gate::authorize('view', $employee);
+
         return view('employees.show', compact('employee'));
     }
 
     public function edit(Employee $employee)
     {
+        Gate::authorize('update', $employee);
+
         $departments = Department::all();
         $roles = Role::all();
 
@@ -59,7 +69,9 @@ class EmployeeController extends Controller
 
     public function update(Request $request, Employee $employee)
     {
-        $request->validate([
+        Gate::authorize('update', $employee);
+
+        $validated = $request->validate([
             'fullname'      => 'required|string|max:255',
             'email'         => 'required|email|unique:employees,email,' . $employee->id,
             'phone'         => 'required|string|max:20',
@@ -72,21 +84,17 @@ class EmployeeController extends Controller
             'salary'        => 'required|numeric|min:0',
         ]);
 
-        $employee->update($request->all());
+        $employee->update($validated);
 
         return redirect()->route('employees.index')->with('success', 'Employee updated successfully.');
     }
 
     public function destroy(Employee $employee)
     {
-        // Misal, diasumsikan auth()->user()->email == $employee->email untuk user sendiri
-        if (auth()->user()->email === $employee->email) {
-            return redirect()->route('employees.index')->with('error', 'You cannot delete your own account.');
-        }
+        Gate::authorize('delete', $employee);
 
         $employee->delete();
 
         return redirect()->route('employees.index')->with('success', 'Employee deleted successfully.');
     }
-
 }
