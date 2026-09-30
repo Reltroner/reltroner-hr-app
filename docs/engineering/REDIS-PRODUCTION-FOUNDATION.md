@@ -57,6 +57,33 @@ Redis 7 -> Redis 8 is a major-version upgrade. Before production mutation, engin
 
 The Phase 4 Redis 7 baseline remains the rollback reference until the Redis 8 production upgrade is separately evidence-frozen.
 
+### Redis 8 Repository Compatibility Checkpoint
+
+```text
+branch:
+infra/redis8-lts-upgrade-20261001
+
+base:
+449239c23109dbc56caf3de47b0b6e86b5f31a5e
+
+candidate:
+cc3d99ab44be9a47130f419a95a69dff7da95c3a
+
+CI Redis image:
+redis:8.2.10-alpine
+
+Redis 8.2.10 + PostgreSQL 18 workflow:
+PASS
+
+PostgreSQL 18 compatibility workflow:
+PASS
+
+production Redis:
+UNCHANGED / DISCOVERY REQUIRED
+```
+
+No Laravel, PHP, Composer dependency, PostgreSQL, Keycloak, authorization, schema, or application Redis configuration upgrade has been justified by CI evidence at this checkpoint.
+
 ## Production Baseline
 
 - Redis server: **7.0.15**
