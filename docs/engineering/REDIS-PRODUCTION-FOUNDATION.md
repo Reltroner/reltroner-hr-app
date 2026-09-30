@@ -188,6 +188,51 @@ no application release change
 
 Phase 12.5B is evidence-frozen. The next stage may add the official Redis APT source and perform exact Redis 8.2 package discovery/simulation, but must not install or restart Redis until that simulation is accepted.
 
+### Phase 12.5C Official Repository + Exact-Pin Simulation
+
+```text
+PHASE_12_5C_APT_SIMULATION_PASS
+
+official Redis source:
+deb [signed-by=/usr/share/keyrings/redis-archive-keyring.gpg] https://packages.redis.io/deb noble main
+
+signing key SHA-256:
+6d0e38c45f40666f507fb21ccdb9a5c164efe98d551434c57cad9765ea1bd1c3
+
+source file SHA-256:
+bcdb03a9ea011fc2f1ab3129de0e8429a64c58b3f11011db70a8016e5e627d09
+
+pin file SHA-256:
+cdd32b49ba5e7f7f8c3b06d3a5e00192abd508c17c220258f09255557560d066
+
+target package:
+6:8.2.10-1rl1~noble1
+
+pin priority:
+1001
+
+APT simulation:
+redis-server 7.0.15 -> 8.2.10
+redis-tools  7.0.15 -> 8.2.10
+
+extra dependencies:
+none
+
+package removals:
+none
+
+runtime after simulation:
+Redis 7.0.15
+same Redis PID
+AOF healthy
+configuration unchanged
+Laravel default/cache/queue/session PASS
+application release unchanged
+```
+
+Phase 12.5C is evidence-frozen. The next stage is the first authorized production binary mutation and must install only the exact pinned Redis server/tools packages with immediate rollback capability.
+
+
 
 ## Production Baseline
 
