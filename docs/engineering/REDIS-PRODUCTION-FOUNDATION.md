@@ -84,6 +84,63 @@ UNCHANGED / DISCOVERY REQUIRED
 
 No Laravel, PHP, Composer dependency, PostgreSQL, Keycloak, authorization, schema, or application Redis configuration upgrade has been justified by CI evidence at this checkpoint.
 
+A second exact-production-client CI checkpoint pinned `phpredis 6.3.0`, matching production:
+
+```text
+candidate:
+80798a027f2c8aa5ba9d9ba57a996919e56c1ca2
+
+Redis:
+8.2.10
+
+PHP:
+8.4
+
+phpredis:
+6.3.0
+
+PostgreSQL:
+18
+
+Redis integration workflow:
+PASS
+
+PostgreSQL compatibility workflow:
+PASS
+```
+
+### Phase 12.5A Production Read-Only Discovery
+
+Production discovery completed without service/package/configuration mutation.
+
+```text
+Redis server / CLI                 7.0.15
+installed packages                 redis-server + redis-tools 5:7.0.15-1ubuntu0.24.04.4
+package source                     Ubuntu Noble archive/security
+explicit packages.redis.io source  absent
+redis-server.service               active / enabled
+listener                           127.0.0.1:6379 and ::1:6379 only
+config entrypoint                  /etc/redis/redis.conf
+production include                 /etc/redis/reltroner-production.conf
+authentication                     requirepass
+ACL principal                      default
+custom aclfile/user directives     none
+maxmemory                          256 MiB
+maxmemory-policy                   noeviction
+AOF                                enabled
+appendfsync                        everysec
+AOF health                         ok
+keyspace                           DB3 = 3 expiring keys
+Laravel default connection         PASS
+Laravel cache connection           PASS
+Laravel queue connection           PASS
+Laravel session connection         PASS
+production phpredis                6.3.0
+active HRM release                 f86aee2371a27e69f33351662a8bb97df044f3c8
+```
+
+The Phase 4 Redis 7 configuration and runtime state remain unchanged. The next production step is backup/rollback preparation before adding the official Redis APT package source or installing Redis 8.
+
 ## Production Baseline
 
 - Redis server: **7.0.15**
