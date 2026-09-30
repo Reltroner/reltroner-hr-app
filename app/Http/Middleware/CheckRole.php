@@ -4,26 +4,20 @@ namespace App\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
-use Illuminate\Http\Response;
-use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Log;
-use App\Models\Employee;
+use Illuminate\Support\Str;
 
 /**
  * CheckRole middleware
  *
  * Usage:
  *  - Route::middleware(['auth', 'role:Admin,HR Manager'])
- *  - Route::middleware(['auth', 'role:Admin']) // single role
+ *  - Route::middleware(['auth', 'role:Admin'])
  *
- * Behavior:
- *  - If no roles passed to the middleware, it will allow the request (no restriction).
- *    (Change behavior to abort by default if you want stricter policy.)
- *  - It tries to identify user's role from multiple places in order:
- *      1) session('role')
- *      2) $user->employee->role->title
- *      3) $user->role (column)
- *      4) Spatie 'hasRole' if available
+ * Authority:
+ *  - Authority is derived strictly from Authenticated User -> Employee -> Role -> Role.title.
+ *  - Presentation session keys ('role', 'employee_id') are synchronized as derived output-only state.
+ *  - Missing employee, missing role, blank role title, or empty allowed roles fail closed with 403.
  */
 class CheckRole
 {
@@ -51,67 +45,77 @@ class CheckRole
         // Accepts: role:Admin,HR Manager  OR role:"Admin" (multiple args)
         $allowed = $this->normalizeAllowedRoles($roles);
 
-        // 3) Try to read role from session first (fallback), then from user->employee->role->title,
-        //    then from user->role column, and if using Spatie, we will use hasRole() check later.
-        $roleFromSession = session('role');
-        $roleFromEmployee = null;
-        $roleFromUserColumn = $user->role ?? null;
+        // Fail closed if no allowed roles are declared on the middleware invocation
+        if (empty($allowed)) {
+            return $this->deny($request, 'CheckRole: no allowed roles configured', $user->id ?? null, null, []);
+        }
 
-        // Try employee relation safely
+        // 3) Resolve authoritative role from User -> Employee -> Role.title
+        $employeeRelation = null;
+        $roleTitle = null;
+
         try {
             if (method_exists($user, 'employee') || property_exists($user, 'employee')) {
-                $employeeRelation = $user->employee; // may be null
-                if ($employeeRelation) {
-                    // If employee->role is relation object or attribute
-                    $roleFromEmployee = optional(optional($employeeRelation)->role)->title
-                                        ?? optional($employeeRelation)->role;
-                    // Save session keys for convenience (only if value valid)
-                    if (! empty($roleFromEmployee)) {
-                        $request->session()->put('role', $roleFromEmployee);
-                        $request->session()->put('employee_id', $employeeRelation->id ?? null);
-                    }
-                }
+                $employeeRelation = $user->employee;
             }
         } catch (\Throwable $e) {
-            // Don't break the request for noisy relation errors — log for debugging
-            Log::warning('CheckRole: failed to fetch employee role', [
+            Log::warning('CheckRole: failed to resolve employee relation', [
                 'user_id' => $user->id ?? null,
                 'error' => $e->getMessage(),
             ]);
+            return $this->deny($request, 'CheckRole: exception resolving employee relation', $user->id ?? null);
         }
 
-        // 4) Determine current role string (prioritize session, then employee, then user column)
-        $currentRole = $roleFromSession ?? $roleFromEmployee ?? $roleFromUserColumn;
-
-        // 5) If no allowed rules provided, allow the request (open). Change this if you want default-deny.
-        if (empty($allowed)) {
-            // no restriction applied by middleware
-            return $next($request);
+        if (! $employeeRelation) {
+            return $this->deny($request, 'CheckRole: user has no employee relation', $user->id ?? null);
         }
 
-        // 6) If using Spatie Roles & Permissions package, prefer hasRole check if available.
-        if (method_exists($user, 'hasRole')) {
-            // normalize allowed roles and check
-            foreach ($allowed as $roleName) {
-                if ($user->hasRole($roleName)) {
-                    return $next($request);
-                }
+        try {
+            $roleRelation = $employeeRelation->role;
+            if ($roleRelation && ! empty($roleRelation->title) && trim((string) $roleRelation->title) !== '') {
+                $roleTitle = trim((string) $roleRelation->title);
             }
+        } catch (\Throwable $e) {
+            Log::warning('CheckRole: failed to resolve employee role', [
+                'user_id' => $user->id ?? null,
+                'employee_id' => $employeeRelation->id ?? null,
+                'error' => $e->getMessage(),
+            ]);
+            return $this->deny($request, 'CheckRole: exception resolving employee role', $user->id ?? null);
         }
 
-        // 7) Fallback: match current role string against allowed list (case-insensitive)
-        $currentNormalized = $currentRole ? Str::lower(trim((string) $currentRole)) : null;
+        if ($roleTitle === null) {
+            return $this->deny($request, 'CheckRole: employee has missing or invalid role', $user->id ?? null);
+        }
+
+        // 4) Synchronize presentation session cache (output-only, never authorization input)
+        // Must occur for the current request before evaluating whether role is in allowed list
+        if ($request->hasSession()) {
+            $request->session()->put('role', $roleTitle);
+            $request->session()->put('employee_id', $employeeRelation->id);
+        }
+
+        // 5) Evaluate whether authoritative role is in allowed list (case-insensitive)
+        $currentNormalized = Str::lower($roleTitle);
         $allowedNormalized = array_map(function ($v) {
             return Str::lower(trim($v));
         }, $allowed);
 
-        if ($currentNormalized !== null && in_array($currentNormalized, $allowedNormalized, true)) {
+        if (in_array($currentNormalized, $allowedNormalized, true)) {
             return $next($request);
         }
 
-        // 8) Not authorized: log details and return proper response (JSON or abort 403)
+        return $this->deny($request, 'CheckRole: user role not authorized', $user->id ?? null, $roleTitle, $allowed);
+    }
+
+    /**
+     * Terminate unauthorized access with logging and proper response.
+     */
+    private function deny(Request $request, string $reason, ?int $userId = null, ?string $currentRole = null, array $allowed = [])
+    {
         Log::warning('Unauthorized access attempt (CheckRole)', [
-            'user_id' => $user->id ?? null,
+            'reason' => $reason,
+            'user_id' => $userId,
             'current_role' => $currentRole,
             'allowed_roles' => $allowed,
             'route' => $request->route()?->getName(),
@@ -151,10 +155,8 @@ class CheckRole
         }
 
         // remove duplicates and empty strings
-        $allowed = array_values(array_unique(array_filter($allowed, function ($v) {
+        return array_values(array_unique(array_filter($allowed, function ($v) {
             return $v !== null && $v !== '';
         })));
-
-        return $allowed;
     }
 }

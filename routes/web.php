@@ -10,8 +10,6 @@ use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\PresenceController;
 use App\Http\Controllers\RoleController;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Response;
-use App\Models\Employee;
 
 /**
  * Redirect root URL to tasks index
@@ -80,9 +78,6 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/tasks/{task}/mark-pending', [TaskController::class, 'markPending'])->name('tasks.markPending')->middleware(['role:Admin,HR Manager,Developer,Accountant,Data Entry,Animator,Marketer']);
 });
 
-Route::get('/api/public-employees', function () {
-    return Response::json(Employee::select('id', 'fullname', 'email', 'department_id')->get());
-});
 
 // routes/web.php (dalam group auth)
 Route::post('/attendance/check-in', [PresenceController::class, 'checkIn'])
