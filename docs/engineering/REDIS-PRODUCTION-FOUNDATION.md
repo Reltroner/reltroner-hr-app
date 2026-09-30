@@ -13,6 +13,50 @@ This phase proves two distinct things:
 
 The HRM Laravel application itself is not yet deployed to the production VPS in this phase. Production HRM deployment remains a later architecture phase.
 
+## Superseding Runtime Upgrade Requirement — Redis 8.2 LTS
+
+**Status: Phase 12.5 — IN PROGRESS / NOT YET DEPLOYED**
+
+The Phase 4 Redis 7 production foundation below remains valid historical/frozen evidence. It is not rewritten retroactively.
+
+A new runtime requirement introduced on 2026-10-01 upgrades the Redis server/runtime target from Redis 7 to the Redis 8.2 LTS/Extended release line, with exact initial target:
+
+```text
+Redis Open Source 8.2.10
+```
+
+This requirement is intentionally isolated from frozen application architecture.
+
+The upgrade must preserve without semantic change:
+
+- loopback-only binding on port 6379;
+- no public Redis exposure;
+- authentication requirement;
+- protected mode;
+- AOF persistence and `appendfsync everysec`;
+- 256 MiB maxmemory unless a separate evidence-backed capacity change is approved;
+- `noeviction`;
+- logical Redis DB mapping 0/1/2/3 for default/cache/queue/session;
+- Laravel `phpredis` client usage;
+- cache/session/queue runtime contracts;
+- database-backed failed jobs;
+- PostgreSQL 18;
+- Keycloak/OIDC identity behavior;
+- Phase 11 production authentication/session-provenance invariants;
+- Phase 12 authorization invariants.
+
+Redis 7 -> Redis 8 is a major-version upgrade. Before production mutation, engineering must:
+
+1. perform read-only discovery of the installed package source/version, service, configuration include chain, persistence paths, AOF/RDB health, memory settings, ACL/auth mode, listener state, and current Laravel Redis client/runtime;
+2. review Redis 8.0/8.2 breaking changes, especially ACL category expansion;
+3. prove the application against exact Redis 8.2.x in CI;
+4. upgrade other dependencies only if compatibility evidence requires it;
+5. create rollback and persistence-backup evidence;
+6. perform controlled production cutover;
+7. verify version, authentication, private binding, persistence, cache, session, queue, workers, and full application behavior after cutover.
+
+The Phase 4 Redis 7 baseline remains the rollback reference until the Redis 8 production upgrade is separately evidence-frozen.
+
 ## Production Baseline
 
 - Redis server: **7.0.15**
