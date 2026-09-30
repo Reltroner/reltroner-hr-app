@@ -385,7 +385,7 @@ Phase 12C-5 Task Authorization                            COMPLETE / PASS / EVID
 Phase 12C-6 Employee / Role Mutation Boundaries           COMPLETE / PASS / EVIDENCE-FROZEN
 Phase 12C-7 Public Exposure + Authorization Surface       COMPLETE / PASS / EVIDENCE-FROZEN
 Phase 12C-8 Full Authorization Regression / Acceptance    COMPLETE / PASS / EVIDENCE-FROZEN
-Phase 12.5   Redis 8 LTS Runtime Upgrade                  IN PROGRESS / 12.5A-D1 EVIDENCE-FROZEN
+Phase 12.5   Redis 8 LTS Runtime Upgrade                  COMPLETE / PASS / EVIDENCE-FROZEN
 ```
 
 Phase 12 final engineering candidate:
@@ -5564,6 +5564,65 @@ fresh cutover backup                        /var/backups/reltroner/redis8-cutove
 ```
 
 Phase 12.5D-2 is complete. Phase 12.5E is the final read-only production acceptance and evidence freeze before Phase 12.5 can be declared complete.
+
+### Phase 12.5E Final Production Acceptance / Phase Freeze
+
+Phase 12.5E completed as a read-only acceptance pass.
+
+```text
+status                                      COMPLETE / PASS / EVIDENCE-FROZEN
+redis-server package                        6:8.2.10-1rl1~noble1
+redis-tools package                         6:8.2.10-1rl1~noble1
+Redis runtime                               8.2.10
+Redis PID                                   305395
+Redis service                               active / enabled / Result=success
+Redis binary                                /usr/bin/redis-server
+base Redis 8 unit SHA-256                   7fcea37ab4a4dbc6c292d38ee3138353d6f996f8b2c71c89e0675effe14522aa
+supervision drop-in SHA-256                 359a6052635e45d97a978ad1197d65159e9eb5ccef797f502b99661135cd5f8a
+production redis.conf SHA-256               ac7e695fe56a54e44f714dd2fbf2486f8cd4202e46096fc32d51fda256848604
+production override SHA-256                 605decf0ac75b787859225a4c9e398e12339a13db25a4a1b8b3b653e530d363a
+authentication                              unauth NOAUTH / authenticated PONG
+network                                     127.0.0.1:6379 + [::1]:6379 only
+protected mode                              yes
+maxmemory                                   256 MiB
+maxmemory policy                            noeviction
+AOF                                         enabled / everysec / healthy
+RDB                                         healthy
+memory headroom                             PASS
+phpredis                                    6.3.0
+Laravel default/cache/queue/session         PASS / PASS / PASS / PASS
+queue service                               active / enabled
+application maintenance                    OFF
+application release                        f86aee2371a27e69f33351662a8bb97df044f3c8 / unchanged
+APT exact pin                               preserved
+redis-server / redis-tools                  held
+rollback artifacts                          present / validated
+post-fix systemd journal                    PASS
+dpkg audit                                  PASS
+acceptance mutation                         NONE
+```
+
+### Phase 12.5 Final State
+
+```text
+Phase 12.5 — Redis 8 LTS Runtime Upgrade
+COMPLETE / PASS / EVIDENCE-FROZEN
+
+Production Redis
+8.2.10
+
+Exact Debian package target
+6:8.2.10-1rl1~noble1
+
+Production application release
+f86aee2371a27e69f33351662a8bb97df044f3c8
+
+Phase 12 authorization source
+UNCHANGED / remains COMPLETE / PASS / EVIDENCE-FROZEN
+```
+
+The failed first cutover attempt and its successful automatic rollback remain part of the evidence chain. The final accepted production state is the successful retry with the supervision compatibility drop-in and byte-identical hardened Redis configuration.
+
 
 
 
