@@ -5530,6 +5530,42 @@ Redis 8 production package installation     NOT PERFORMED
 
 The compatibility drop-in is now part of the accepted production Redis service contract for the Redis 7 -> 8 package transition. The Redis 8 cutover retry must preserve this drop-in and keep the frozen Redis configuration byte-identical.
 
+### Phase 12.5D-2 Retry #2 Production Cutover Evidence Freeze
+
+The second Redis 8.2.10 production cutover attempt completed successfully with the supervision compatibility drop-in preserved.
+
+```text
+status                                      COMPLETE / PASS / EVIDENCE-FROZEN
+redis-server package                        6:8.2.10-1rl1~noble1
+redis-tools package                         6:8.2.10-1rl1~noble1
+Redis runtime                               8.2.10
+Redis PID                                   305395
+systemd result                              success
+base Redis 8 unit SHA-256                   7fcea37ab4a4dbc6c292d38ee3138353d6f996f8b2c71c89e0675effe14522aa
+supervision drop-in SHA-256                 359a6052635e45d97a978ad1197d65159e9eb5ccef797f502b99661135cd5f8a
+effective supervision                       --supervised systemd --daemonize no
+production redis.conf                       byte-identical to frozen baseline
+authentication                              preserved / unauth NOAUTH / auth PONG
+network boundary                            127.0.0.1:6379 + [::1]:6379 only
+protected mode                              yes
+maxmemory                                   256 MiB
+maxmemory policy                            noeviction
+appendonly                                  yes
+appendfsync                                 everysec
+Redis 7 -> 8 cross-version probe            PASS on DB0-DB3
+persistence health                          PASS
+Laravel default/cache/queue/session         PASS / PASS / PASS / PASS
+queue worker                                ACTIVE
+application maintenance                    OFF
+application release                        unchanged
+redis-server / redis-tools                  HELD
+unrelated package upgrade                   NONE
+fresh cutover backup                        /var/backups/reltroner/redis8-cutover-retry2-20260930T234422Z
+```
+
+Phase 12.5D-2 is complete. Phase 12.5E is the final read-only production acceptance and evidence freeze before Phase 12.5 can be declared complete.
+
+
 
 
 
