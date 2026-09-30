@@ -8,7 +8,6 @@ use App\Models\LeaveRequest;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Schema;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
@@ -662,27 +661,15 @@ class LeaveRequestAuthorizationTest extends TestCase
 
     public function test_user_without_employee_relationship_is_denied_leave_access(): void
     {
-        if (! Schema::hasColumn('users', 'role')) {
-            Schema::table('users', function ($table) {
-                $table->string('role')->nullable();
-            });
-        }
-        Schema::table('users', function ($table) {
-            $table->dropColumn('employee_id');
-        });
-        Schema::table('users', function ($table) {
-            $table->string('employee_id')->nullable();
-        });
+        $user = User::factory()->create([
+            'employee_id' => '0',
+            'email_verified_at' => now(),
+        ]);
+
+        $this->assertNull($user->employee);
 
         [, $devEmp] = $this->createUserWithRole('Developer');
         $leave = $this->createLeaveRequest($devEmp);
-
-        // Authenticated user with genuinely persisted null employee relation and legacy users.role = 'Admin'
-        $user = User::factory()->create([
-            'employee_id' => null,
-            'role' => 'Admin',
-            'email_verified_at' => now(),
-        ]);
 
         // Attempt GET /leave_requests
         $this->actingAs($user)->get('/leave_requests')->assertStatus(403);
