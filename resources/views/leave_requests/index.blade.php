@@ -78,9 +78,15 @@
                                             @if(session('role') == 'Admin' || session('role') == 'HR Manager')
                                                 <a href="{{ route('leave_requests.show', $leave->id) }}" class="btn btn-info btn-sm mb-1">View</a>
                                                 @if ($leave->status === 'pending' || $leave->status === 'rejected')
-                                                    <a href="{{ route('leave_requests.approve', $leave->id) }}" class="btn btn-success btn-sm mb-1">Approve</a>
+                                                    <form action="{{ route('leave_requests.approve', $leave->id) }}" method="POST" class="d-inline">
+                                                        @csrf
+                                                        <button type="submit" class="btn btn-success btn-sm mb-1">Approve</button>
+                                                    </form>
                                                 @else
-                                                    <a href="{{ route('leave_requests.reject', $leave->id) }}" class="btn btn-danger btn-sm mb-1">Rejected</a>
+                                                    <form action="{{ route('leave_requests.reject', $leave->id) }}" method="POST" class="d-inline">
+                                                        @csrf
+                                                        <button type="submit" class="btn btn-danger btn-sm mb-1">Rejected</button>
+                                                    </form>
                                                 @endif
                                                 <a href="{{ route('leave_requests.edit', $leave->id) }}" class="btn btn-primary btn-sm mb-1">Edit</a>
                                                 <form action="{{ route('leave_requests.destroy', $leave->id) }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure to delete this request?');">
@@ -123,9 +129,15 @@
                                 @if(session('role') == 'Admin' || session('role') == 'HR Manager')
                                     <a href="{{ route('leave_requests.show', $leave->id) }}" class="btn btn-info btn-sm mb-1">View</a>
                                     @if ($leave->status === 'pending' || $leave->status === 'rejected')
-                                        <a href="{{ route('leave_requests.approve', $leave->id) }}" class="btn btn-success btn-sm mb-1">Approve</a>
+                                        <form action="{{ route('leave_requests.approve', $leave->id) }}" method="POST" class="d-inline">
+                                            @csrf
+                                            <button type="submit" class="btn btn-success btn-sm mb-1">Approve</button>
+                                        </form>
                                     @else
-                                        <a href="{{ route('leave_requests.reject', $leave->id) }}" class="btn btn-danger btn-sm mb-1">Rejected</a>
+                                        <form action="{{ route('leave_requests.reject', $leave->id) }}" method="POST" class="d-inline">
+                                            @csrf
+                                            <button type="submit" class="btn btn-danger btn-sm mb-1">Rejected</button>
+                                        </form>
                                     @endif
                                     <a href="{{ route('leave_requests.edit', $leave->id) }}" class="btn btn-primary btn-sm mb-1">Edit</a>
                                     <form action="{{ route('leave_requests.destroy', $leave->id) }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure to delete this request?');">

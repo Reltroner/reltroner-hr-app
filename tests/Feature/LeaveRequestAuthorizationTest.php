@@ -310,7 +310,7 @@ class LeaveRequestAuthorizationTest extends TestCase
 
         $leave = $this->createLeaveRequest($otherEmp, ['status' => 'pending']);
 
-        $response = $this->actingAs($adminUser)->get("/leave_requests/approve/{$leave->id}");
+        $response = $this->actingAs($adminUser)->post("/leave_requests/approve/{$leave->id}");
 
         $response->assertRedirect(route('leave_requests.index'));
         $leave->refresh();
@@ -325,7 +325,7 @@ class LeaveRequestAuthorizationTest extends TestCase
 
         $leave = $this->createLeaveRequest($otherEmp, ['status' => 'pending']);
 
-        $response = $this->actingAs($adminUser)->get("/leave_requests/reject/{$leave->id}");
+        $response = $this->actingAs($adminUser)->post("/leave_requests/reject/{$leave->id}");
 
         $response->assertRedirect(route('leave_requests.index'));
         $leave->refresh();
@@ -555,7 +555,7 @@ class LeaveRequestAuthorizationTest extends TestCase
 
         $ownLeave = $this->createLeaveRequest($selfEmp, ['status' => 'pending']);
 
-        $response = $this->actingAs($selfUser)->get("/leave_requests/approve/{$ownLeave->id}");
+        $response = $this->actingAs($selfUser)->post("/leave_requests/approve/{$ownLeave->id}");
 
         $response->assertStatus(403);
         $ownLeave->refresh();
@@ -570,7 +570,7 @@ class LeaveRequestAuthorizationTest extends TestCase
 
         $otherLeave = $this->createLeaveRequest($otherEmp, ['status' => 'pending']);
 
-        $response = $this->actingAs($selfUser)->get("/leave_requests/approve/{$otherLeave->id}");
+        $response = $this->actingAs($selfUser)->post("/leave_requests/approve/{$otherLeave->id}");
 
         $response->assertStatus(403);
         $otherLeave->refresh();
@@ -584,7 +584,7 @@ class LeaveRequestAuthorizationTest extends TestCase
 
         $ownLeave = $this->createLeaveRequest($selfEmp, ['status' => 'pending']);
 
-        $response = $this->actingAs($selfUser)->get("/leave_requests/reject/{$ownLeave->id}");
+        $response = $this->actingAs($selfUser)->post("/leave_requests/reject/{$ownLeave->id}");
 
         $response->assertStatus(403);
         $ownLeave->refresh();
@@ -599,7 +599,7 @@ class LeaveRequestAuthorizationTest extends TestCase
 
         $otherLeave = $this->createLeaveRequest($otherEmp, ['status' => 'pending']);
 
-        $response = $this->actingAs($selfUser)->get("/leave_requests/reject/{$otherLeave->id}");
+        $response = $this->actingAs($selfUser)->post("/leave_requests/reject/{$otherLeave->id}");
 
         $response->assertStatus(403);
         $otherLeave->refresh();
@@ -623,8 +623,8 @@ class LeaveRequestAuthorizationTest extends TestCase
             ['get', "/leave_requests/{$leave->id}/edit"],
             ['put', "/leave_requests/{$leave->id}", []],
             ['delete', "/leave_requests/{$leave->id}"],
-            ['get', "/leave_requests/approve/{$leave->id}"],
-            ['get', "/leave_requests/reject/{$leave->id}"],
+            ['post', "/leave_requests/approve/{$leave->id}", []],
+            ['post', "/leave_requests/reject/{$leave->id}", []],
         ];
 
         foreach ($endpoints as $entry) {
@@ -699,5 +699,67 @@ class LeaveRequestAuthorizationTest extends TestCase
             'start_date' => '2026-08-01',
             'end_date' => '2026-08-05',
         ]);
+    }
+
+    public function test_privileged_user_cannot_mutate_leave_via_legacy_get_approve(): void
+    {
+        [$adminUser] = $this->createUserWithRole('Admin');
+        [, $otherEmp] = $this->createUserWithRole('Developer');
+
+        $leave = $this->createLeaveRequest($otherEmp, ['status' => 'pending']);
+
+        $response = $this->actingAs($adminUser)->get("/leave_requests/approve/{$leave->id}");
+
+        $response->assertStatus(405);
+        $leave->refresh();
+        $this->assertSame('pending', $leave->status);
+    }
+
+    public function test_privileged_user_cannot_mutate_leave_via_legacy_get_reject(): void
+    {
+        [$adminUser] = $this->createUserWithRole('Admin');
+        [, $otherEmp] = $this->createUserWithRole('Developer');
+
+        $leave = $this->createLeaveRequest($otherEmp, ['status' => 'approved']);
+
+        $response = $this->actingAs($adminUser)->get("/leave_requests/reject/{$leave->id}");
+
+        $response->assertStatus(405);
+        $leave->refresh();
+        $this->assertSame('approved', $leave->status);
+    }
+
+    public function test_leave_index_renders_approve_and_reject_controls_as_csrf_protected_post_forms(): void
+    {
+        [$adminUser, $adminEmp] = $this->createUserWithRole('Admin');
+        [, $devEmp] = $this->createUserWithRole('Developer');
+
+        $pendingLeave = $this->createLeaveRequest($devEmp, ['status' => 'pending']);
+        $approvedLeave = $this->createLeaveRequest($devEmp, ['status' => 'approved']);
+
+        $response = $this->actingAs($adminUser)->get('/leave_requests');
+
+        $response->assertSuccessful();
+
+        $content = $response->getContent();
+
+        $approveUrl = route('leave_requests.approve', $pendingLeave->id);
+        $rejectUrl = route('leave_requests.reject', $approvedLeave->id);
+
+        // Prove approve action points to named route and uses POST
+        $this->assertStringContainsString('action="' . $approveUrl . '"', $content);
+        $this->assertMatchesRegularExpression('/<form[^>]+action="' . preg_quote($approveUrl, '/') . '"[^>]+method="POST"/i', $content);
+
+        // Prove reject action points to named route and uses POST
+        $this->assertStringContainsString('action="' . $rejectUrl . '"', $content);
+        $this->assertMatchesRegularExpression('/<form[^>]+action="' . preg_quote($rejectUrl, '/') . '"[^>]+method="POST"/i', $content);
+
+        // Prove request-token hidden input generated by @csrf is present
+        $this->assertMatchesRegularExpression('/<input[^>]+type="hidden"[^>]+name="_token"/i', $content);
+
+        // Prove no state-changing approve/reject anchor tags remain
+        $this->assertStringNotContainsString('<a href="' . $approveUrl . '"', $content);
+        $this->assertStringNotContainsString('<a href="' . $rejectUrl . '"', $content);
+        $this->assertDoesNotMatchRegularExpression('/<a\s+[^>]*href=["\'][^"\']*\/leave_requests\/(approve|reject)\/\d+/i', $content);
     }
 }

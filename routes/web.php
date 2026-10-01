@@ -52,10 +52,10 @@ Route::middleware(['auth'])->group(function () {
      */
     Route::resource('/leave_requests', LeaveRequestController::class)
         ->middleware(['role:Admin,HR Manager,Developer,Accountant,Data Entry,Animator,Marketer']);
-    Route::get('/leave_requests/approve/{id}', [LeaveRequestController::class, 'approve'])
+    Route::post('/leave_requests/approve/{id}', [LeaveRequestController::class, 'approve'])
         ->name('leave_requests.approve')
         ->middleware(['role:Admin,HR Manager']);
-    Route::get('/leave_requests/reject/{id}', [LeaveRequestController::class, 'reject'])
+    Route::post('/leave_requests/reject/{id}', [LeaveRequestController::class, 'reject'])
         ->name('leave_requests.reject')
         ->middleware(['role:Admin,HR Manager']);
 
