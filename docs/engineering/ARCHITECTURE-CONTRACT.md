@@ -5748,39 +5748,638 @@ Phase 12.5 does not change the completion status or exact evidence SHA of Phase 
 
 ## Phase 13 — HTTP and CSRF Hardening
 
+### Status
+
+```text
+architecture brainstorming / contract refinement
+implementation NOT STARTED
+```
+
+Phase 13 must be implemented on top of the accepted Phase 12 authorization boundary. The frozen Phase 12 final candidate is:
+
+```text
+449239c23109dbc56caf3de47b0b6e86b5f31a5e
+```
+
+PR #9 remains OPEN / NOT MERGED at the time this contract is refined. Phase 13 discovery may inspect that candidate directly, but implementation must not silently fall back to an older authorization surface. Phase 13 must preserve the Phase 12 Policy seams and authorization semantics.
+
 ### Goal
 
-Eliminate state-changing GET behavior.
+Eliminate HTTP GET as an entrypoint for HR business mutations and destructive authenticated-session operations while preserving protocol-required authentication GET flows.
 
-### Tasks
+The target invariant is:
+
+```text
+READ / NAVIGATION
+        ↓
+GET / HEAD
+
+BUSINESS MUTATION
+        ↓
+POST / PATCH / PUT / DELETE
+        ↓
+Laravel web middleware
+        ↓
+CSRF validation
+        ↓
+authenticated / OIDC-bound session
+        ↓
+Phase 12 authorization Policy
+        ↓
+resource / operation decision
+        ↓
+controller mutation
+```
+
+The security layers must remain distinct:
+
+```text
+HTTP method correctness
+        !=
+CSRF validation
+        !=
+authentication
+        !=
+authorization
+```
+
+A valid mutation therefore requires all applicable layers:
+
+```text
+appropriate unsafe HTTP method
++ valid CSRF intent
++ valid authenticated session
++ valid OIDC binding in production
++ existing Phase 12 authorization
++ allowed resource / operation
+= mutation allowed
+```
+
+Everything else fails closed.
+
+### Current Known Mutation Debt
+
+The known Phase 12 candidate still exposes these mutation families through GET:
+
+```text
+GET /leave_requests/approve/{id}
+GET /leave_requests/reject/{id}
+GET /tasks/{task}/mark-complete
+GET /tasks/{task}/mark-pending
+GET /logout
+```
+
+The intended Phase 13 target is:
+
+```text
+POST /leave_requests/approve/{id}
+POST /leave_requests/reject/{id}
+POST /tasks/{task}/mark-complete
+POST /tasks/{task}/mark-pending
+POST /logout
+```
+
+The existing route names should remain stable unless discovery proves a collision or semantic defect:
+
+```text
+leave_requests.approve
+leave_requests.reject
+tasks.markComplete
+tasks.markPending
+logout
+```
+
+The controller action and Phase 12 authorization seams should also remain stable:
+
+```text
+LeaveRequestController::approve
+  -> Gate::authorize('approve', $leave_request)
+
+LeaveRequestController::reject
+  -> Gate::authorize('reject', $leave_request)
+
+TaskController::markComplete
+  -> Gate::authorize('transitionStatus', $task)
+
+TaskController::markPending
+  -> Gate::authorize('transitionStatus', $task)
+
+AuthenticatedSessionController::destroy
+  -> preserve OIDC logout/session invalidation semantics
+```
+
+Phase 13 is a transport / request-integrity hardening phase, not an authorization redesign.
+
+### HTTP Method Contract
+
+After Phase 13:
+
+```text
+GET leave approve         -> must not mutate
+GET leave reject          -> must not mutate
+GET task complete         -> must not mutate
+GET task pending          -> must not mutate
+GET logout                -> must not destroy session
+```
+
+Browser refresh, crawler traversal, link prefetch, embedded-resource navigation, or a cross-site GET must not be able to:
+
+- approve leave;
+- reject leave;
+- mutate task status;
+- destroy an authenticated session.
+
+Command-style endpoints may remain operation-specific in this phase. Phase 13 does not require a generic REST/API redesign such as collapsing all transitions into one broad update endpoint.
+
+### Blade / Caller Contract
+
+Mutation callers must become real forms or explicit unsafe-method requests.
+
+Preferred Blade pattern:
+
+```blade
+<form method="POST" action="{{ route('...') }}">
+    @csrf
+    <button type="submit">...</button>
+</form>
+```
+
+Do not retain a mutation as an anchor link whose correctness depends on JavaScript `preventDefault()`.
+
+Logout presentation should therefore be a real POST form. The existing POST logout path and its controller behavior are retained; the GET compatibility route is removed.
+
+### Logout Contract
+
+`AuthenticatedSessionController::destroy()` already owns the accepted logout semantics and must not be rewritten merely because the route method is hardened.
+
+The accepted sequence remains:
+
+```text
+detect OIDC session binding
+        ↓
+capture / consume id_token_hint when available
+        ↓
+logout Laravel web guard
+        ↓
+invalidate Laravel session
+        ↓
+regenerate CSRF token
+        ↓
+build RP-initiated Keycloak logout when OIDC-bound
+        ↓
+redirect
+```
+
+Phase 13 changes the entry method to POST-only; it does not reopen the Phase 10/11 logout identity contract.
+
+### Protocol GET Exception Taxonomy
+
+The goal is not the naive rule:
+
+```text
+GET can never modify any state whatsoever
+```
+
+The correct rule is:
+
+```text
+GET MUST NOT perform HR business mutations
+or destructive authenticated-session operations.
+
+Protocol-required GET endpoints may modify protocol/session state
+only when explicitly documented and protected by the protocol's
+integrity controls.
+```
+
+Examples that must remain explicitly classified instead of being mechanically converted:
+
+```text
+GET /auth/keycloak/redirect
+GET /auth/keycloak/callback
+```
+
+The OIDC redirect/callback flow is protocol state, not an HR business mutation. Its integrity boundary includes:
+
+```text
+state
+nonce
+PKCE S256
+issuer validation
+audience/client validation
+approved issuer + subject linkage
+OIDC session binding
+```
+
+Phase 13 must not break or convert the OIDC Authorization Code redirect/callback flow merely to satisfy a broad method rule.
+
+### Residual Signed / Legacy GET Mutation Discovery
+
+Phase 13A must inspect every GET route and identify controller/service side effects before implementation.
+
+A known residual example is:
+
+```text
+GET verify-email/{id}/{hash}
+```
+
+The current handler may call:
+
+```text
+markEmailAsVerified()
+```
+
+This is state-changing behavior and must therefore be explicitly classified during Phase 13 discovery.
+
+Possible outcomes include:
+
+```text
+retained as a documented signed-link protocol/compatibility exception
+retired because it is obsolete in the Keycloak-only production posture
+migrated to a safer explicit confirmation flow
+deferred with an explicit contract and evidence
+```
+
+It must not be silently ignored.
+
+### CSRF Contract
+
+CSRF protection and authorization answer different questions.
+
+```text
+CSRF:
+Did this unsafe browser request carry valid request intent?
+
+Authorization:
+May this principal perform this operation on this resource?
+```
+
+Neither replaces the other.
+
+Acceptance matrix:
+
+| Authenticated session | CSRF | Authorization | Result |
+|---|---|---|---|
+| invalid | valid | irrelevant | deny |
+| valid | invalid | allowed | deny |
+| valid | valid | denied | deny |
+| valid | valid | allowed | permit |
+| valid via GET business-mutation URL | not applicable | allowed | must not mutate |
+
+All migrated browser mutation paths must pass through Laravel's web CSRF middleware. Phase 13 must not add CSRF exemptions for these business operations.
+
+### Authorization Preservation
+
+Phase 12 centralized Policy boundaries remain authoritative.
+
+Example leave execution path:
+
+```text
+POST command route
+        ↓
+web / CSRF middleware
+        ↓
+auth
+        ↓
+existing compatibility role boundary
+        ↓
+LeaveRequestController
+        ↓
+Gate::authorize('approve'|'reject')
+        ↓
+LeaveRequestPolicy
+        ↓
+status mutation
+```
+
+Example task execution path:
+
+```text
+POST command route
+        ↓
+web / CSRF middleware
+        ↓
+auth
+        ↓
+existing compatibility role boundary
+        ↓
+TaskController
+        ↓
+Gate::authorize('transitionStatus')
+        ↓
+TaskPolicy
+        ↓
+status mutation
+```
+
+Changing HTTP verbs must not weaken, duplicate, bypass, or relocate these authorization decisions.
+
+### Phase 13 Subphases
+
+#### Phase 13A — HTTP Mutation Discovery
+
+Read-only inventory of:
+
+- every GET route;
+- route middleware;
+- controllers / invokable handlers;
+- controller/service side effects;
+- Blade callers;
+- JavaScript callers;
+- redirects;
+- signed routes;
+- OIDC routes;
+- email verification routes;
+- tests that assert legacy GET behavior.
+
+Output must classify each relevant GET as one of:
+
+```text
+safe read/navigation
+business mutation — must migrate
+destructive session mutation — must migrate
+protocol-required state transition — explicit exception
+signed/legacy mutation — explicit decision required
+unknown — do not implement until resolved
+```
+
+#### Phase 13B — HTTP / CSRF Contract Freeze
+
+Freeze:
+
+- exact mutation route inventory;
+- exact target HTTP verbs;
+- route-name compatibility;
+- protocol exceptions;
+- signed/legacy route decisions;
+- required Blade/JS caller migrations;
+- required negative tests;
+- exact files in implementation scope.
+
+No implementation should begin before the discovery inventory is internally consistent.
+
+#### Phase 13C-1 — Leave Transition Hardening
 
 Migrate:
 
 ```text
-
 leave approve
-
 leave reject
-
-task status change
-
-logout
-
 ```
 
-to appropriate mutation verbs.
+from GET to POST.
 
-Update:
+Required behavior:
 
-- Blade forms
+- route names retained;
+- Blade links converted to CSRF-protected forms;
+- existing Phase 12 leave Policies retained;
+- old GET URL cannot mutate;
+- valid POST retains current business result.
 
-- JS callers
+#### Phase 13C-2 — Task Transition Hardening
 
-- routes
+Migrate:
 
-- tests
+```text
+mark complete
+mark pending
+```
 
-- CSRF behavior
+from GET to POST.
+
+Required behavior:
+
+- route names retained;
+- callers become CSRF-protected forms;
+- `transitionStatus` Policy seam retained;
+- old GET URL cannot mutate;
+- valid POST retains current business result.
+
+#### Phase 13C-3 — Logout POST-Only Cutover
+
+Remove:
+
+```text
+GET /logout
+```
+
+Retain:
+
+```text
+POST /logout
+```
+
+Normalize all logout callers to actual POST forms.
+
+Required behavior:
+
+- POST logout remains CSRF protected;
+- Laravel session invalidation remains intact;
+- CSRF token regeneration remains intact;
+- OIDC-bound logout still uses the accepted Keycloak end-session path;
+- GET logout no longer destroys the session.
+
+#### Phase 13C-4 — Residual GET Mutation Closure
+
+Resolve all remaining discovered GET mutations, including email-verification behavior.
+
+This subphase must not alter OIDC redirect/callback semantics unless discovery finds an actual defect.
+
+#### Phase 13C-5 — CSRF Structural Acceptance
+
+Add structural and behavioral regression coverage proving:
+
+```text
+known business mutation routes are unsafe-method only
+PreventRequestForgery is present on mutation routes
+old GET mutation URLs cannot change state
+missing/invalid CSRF cannot change state
+valid CSRF does not bypass authorization
+existing Phase 12 Policy denials remain effective
+OIDC routes remain protocol-correct
+```
+
+#### Phase 13C-6 — Full Regression / CI / Evidence Freeze
+
+Required gates:
+
+```text
+targeted Phase 13 tests PASS
+cross-domain Phase 12 authorization regression PASS
+full local suite PASS
+PostgreSQL compatibility PASS
+Redis integration PASS when affected by session/logout coverage
+Git diff reviewed
+exact candidate SHA known
+CI exact-SHA evidence PASS
+production deployment NOT implied by CI
+```
+
+### Mandatory Behavioral Tests
+
+For leave approve/reject:
+
+```text
+GET old mutation URL
+-> 404 or 405
+-> leave status unchanged
+
+POST without valid CSRF
+-> rejected
+-> leave status unchanged
+
+authorized POST with valid CSRF
+-> mutation succeeds
+
+unauthorized POST with valid CSRF
+-> 403
+-> leave status unchanged
+```
+
+For task transitions:
+
+```text
+GET old mutation URL
+-> 404 or 405
+-> task status unchanged
+
+POST without valid CSRF
+-> rejected
+-> task status unchanged
+
+authorized POST with valid CSRF
+-> requested transition succeeds
+
+unauthorized POST with valid CSRF
+-> 403
+-> task status unchanged
+```
+
+For logout:
+
+```text
+GET /logout
+-> must not destroy authenticated session
+
+POST /logout without valid CSRF
+-> rejected
+-> authenticated session remains
+
+POST /logout with valid CSRF
+-> Laravel session invalidated
+-> CSRF token regenerated
+-> OIDC logout semantics preserved
+```
+
+### Structural Route Tests
+
+The route collection must prove:
+
+```text
+leave_requests.approve
+methods = POST only
+
+leave_requests.reject
+methods = POST only
+
+tasks.markComplete
+methods = POST only
+
+tasks.markPending
+methods = POST only
+
+logout
+methods = POST only
+```
+
+Tests should verify gathered middleware rather than relying only on route-file text where practical.
+
+### Non-Goals / Deferred Boundaries
+
+Phase 13 must not introduce:
+
+```text
+Organization / Membership schema
+organization_id migrations
+membership-scoped permission tables
+RBAC v2
+new audit subsystem
+modular-monolith extraction
+new business microservices
+generic API redesign
+new task or leave state-machine semantics
+OIDC protocol redesign
+Redis topology changes
+PostgreSQL schema changes unless discovery proves an unavoidable defect
+```
+
+The existing long-term sequencing remains:
+
+```text
+Phase 12
+Who may mutate?
+        ↓
+Phase 13
+How must a mutation enter the application?
+        ↓
+Phase 14
+What mutation happened, by whom, and when?
+        ↓
+later modularization / tenancy / permission phases
+```
+
+Phase 17 remains the Organization / Membership tenancy boundary.
+
+Phase 18 remains membership-scoped permission RBAC.
+
+### Phase 13 Definition of Done
+
+Phase 13 is complete only when all of the following are true:
+
+```text
+no known HR business mutation remains reachable through GET
+GET logout is removed
+all known browser mutation callers use unsafe HTTP methods
+all browser mutation callers carry CSRF protection
+old GET mutation URLs fail without changing state
+missing/invalid CSRF fails without changing state
+valid CSRF never bypasses Phase 12 authorization
+Phase 12 Policy behavior remains unchanged
+OIDC redirect/callback flow remains intact
+OIDC-bound logout behavior remains intact
+signed/legacy GET mutation routes are explicitly resolved
+no accidental database schema migration
+full local regression PASS
+PostgreSQL CI PASS
+Redis/session integration evidence PASS where applicable
+exact Phase 13 candidate SHA frozen
+authoritative CI evidence frozen
+production deployment remains a separate explicit operation
+```
+
+Final target:
+
+```text
+safe HTTP methods
+GET / HEAD
+        ↓
+read / navigation / explicitly-classified protocol behavior
+
+business mutation
+POST / PATCH / PUT / DELETE
+        ↓
+CSRF
+        ↓
+authentication
+        ↓
+OIDC session provenance where required
+        ↓
+Phase 12 Policy
+        ↓
+resource / operation decision
+        ↓
+mutation
+```
 
 ---
 
