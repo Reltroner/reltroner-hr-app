@@ -5751,8 +5751,14 @@ Phase 12.5 does not change the completion status or exact evidence SHA of Phase 
 ### Status
 
 ```text
-architecture brainstorming / contract refinement
-implementation NOT STARTED
+Phase 13A — HTTP Mutation Discovery
+COMPLETE / PASS / EVIDENCE-FROZEN
+
+Phase 13B — HTTP / CSRF Contract Freeze
+COMPLETE / PASS / FROZEN
+
+Phase 13C implementation
+NOT STARTED
 ```
 
 Phase 13 must be implemented on top of the accepted Phase 12 authorization boundary. The frozen Phase 12 final candidate is:
@@ -5990,16 +5996,44 @@ markEmailAsVerified()
 
 This is state-changing behavior and must therefore be explicitly classified during Phase 13 discovery.
 
-Possible outcomes include:
+Phase 13B freezes the decision for this repository:
 
 ```text
-retained as a documented signed-link protocol/compatibility exception
-retired because it is obsolete in the Keycloak-only production posture
-migrated to a safer explicit confirmation flow
-deferred with an explicit contract and evidence
+verification.verify
+= RETIRE legacy local email-verification HTTP surface in Phase 13C-4
 ```
 
-It must not be silently ignored.
+The retirement scope is intentionally complete so no broken verification caller remains:
+
+```text
+remove GET  /verify-email                         (verification.notice)
+remove GET  /verify-email/{id}/{hash}             (verification.verify)
+remove POST /email/verification-notification      (verification.send)
+
+remove:
+app/Http/Controllers/Auth/EmailVerificationPromptController.php
+app/Http/Controllers/Auth/VerifyEmailController.php
+app/Http/Controllers/Auth/EmailVerificationNotificationController.php
+resources/views/auth/verify-email.blade.php
+tests/Feature/Auth/EmailVerificationTest.php
+
+remove stale verification UI/caller references from:
+resources/views/profile/partials/update-profile-information-form.blade.php
+
+remove the now-non-authoritative verified middleware requirement from:
+GET /dashboard
+GET /dashboard/presence
+```
+
+Rationale:
+
+- production authentication authority is Keycloak OIDC only;
+- local registration and local credential flows are already fail-closed in production;
+- the current `User` model does not implement the `MustVerifyEmail` contract;
+- the signed GET can still mutate `email_verified_at`, but that field is not the production authentication or authorization authority;
+- retaining the signed GET would preserve a state-changing GET surface without a required production security function.
+
+Phase 13C-4 must **not** drop the `users.email_verified_at` column or introduce a database migration. Existing persistence compatibility may remain for factories, historical data, and future explicitly-designed identity work. Reintroducing local email verification in the future requires a new explicit authentication contract rather than silently reviving Breeze compatibility routes.
 
 ### CSRF Contract
 
@@ -6025,7 +6059,31 @@ Acceptance matrix:
 | valid | valid | allowed | permit |
 | valid via GET business-mutation URL | not applicable | allowed | must not mutate |
 
-All migrated browser mutation paths must pass through Laravel's web CSRF middleware. Phase 13 must not add CSRF exemptions for these business operations.
+All migrated browser mutation paths must pass through Laravel 13's `Illuminate\Foundation\Http\Middleware\PreventRequestForgery`, which is included in the `web` middleware group by default. Phase 13 must not add request-forgery exemptions for these business operations.
+
+Laravel 13 request-forgery acceptance is intentionally broader than the legacy statement "every POST must always present a valid token":
+
+```text
+accepted same-origin Sec-Fetch-Site evidence
+OR
+matching CSRF token fallback
+=
+request-forgery boundary satisfied
+```
+
+Therefore, Phase 13 tests must distinguish **missing token** from an actual **forgery attempt**. A same-origin request may be accepted by `PreventRequestForgery` before token comparison. Negative acceptance must simulate an unsafe request without acceptable origin evidence and without a matching token, then prove no mutation occurs.
+
+Laravel 13 also bypasses `PreventRequestForgery` while the application is running unit tests. Ordinary feature tests therefore cannot, by themselves, prove real request-forgery rejection. Phase 13C-5 must combine:
+
+```text
+route/middleware structural proof
++
+a dedicated request-forgery middleware test or controlled non-testing dispatch
++
+business-state unchanged assertions
+```
+
+Do not mark CSRF/request-forgery acceptance PASS solely because a normal PHPUnit feature request returned the expected business response.
 
 ### Authorization Preservation
 
@@ -6116,6 +6174,82 @@ Freeze:
 - exact files in implementation scope.
 
 No implementation should begin before the discovery inventory is internally consistent.
+
+Phase 13A authoritative evidence is frozen as:
+
+```text
+discovery candidate SHA:
+449239c23109dbc56caf3de47b0b6e86b5f31a5e
+
+route collection SHA-256:
+9dbcf35db26a6e7f8dd343e920cc39433c2c30234162a4b3d3a5c6314a28388f
+
+total routes:                              82
+GET-capable routes:                        49
+known HR business GET mutations:            4
+known destructive session GET mutations:    1
+known OIDC protocol GET exceptions:          2
+known signed/legacy GET mutation candidates: 1
+public employee route:                     ABSENT
+source mutation during discovery:           NONE
+```
+
+Frozen Phase 13B classification:
+
+| Surface | Current method | Phase 13 target | Decision |
+|---|---|---|---|
+| `leave_requests.approve` | GET/HEAD | POST only | migrate in 13C-1 |
+| `leave_requests.reject` | GET/HEAD | POST only | migrate in 13C-1 |
+| `tasks.markComplete` | GET/HEAD | POST only | migrate in 13C-2 |
+| `tasks.markPending` | GET/HEAD | POST only | migrate in 13C-2 |
+| `/logout` legacy route | GET/HEAD | absent | remove in 13C-3 |
+| `logout` named route | POST | POST only | preserve in 13C-3 |
+| `oidc.redirect` | GET/HEAD | GET/HEAD | preserve protocol exception |
+| `oidc.callback` | GET/HEAD | GET/HEAD | preserve protocol exception |
+| `verification.verify` | GET/HEAD | absent | retire legacy email-verification surface in 13C-4 |
+
+Frozen implementation scope by subphase:
+
+```text
+13C-1
+routes/web.php
+resources/views/leave_requests/index.blade.php
+tests/Feature/LeaveRequestAuthorizationTest.php
+plus focused Phase 13 route/request-integrity tests
+
+13C-2
+routes/web.php
+resources/views/tasks/index.blade.php
+tests/Feature/TaskAuthorizationTest.php
+plus focused Phase 13 route/request-integrity tests
+
+13C-3
+routes/auth.php
+resources/views/layouts/navigation.blade.php
+tests/Feature/Auth/AuthenticationTest.php
+tests/Feature/Identity/OidcLogoutTest.php
+plus focused Phase 13 route/request-integrity tests
+
+13C-4
+routes/auth.php
+routes/web.php
+app/Http/Controllers/Auth/EmailVerificationPromptController.php
+app/Http/Controllers/Auth/VerifyEmailController.php
+app/Http/Controllers/Auth/EmailVerificationNotificationController.php
+resources/views/auth/verify-email.blade.php
+resources/views/profile/partials/update-profile-information-form.blade.php
+tests/Feature/Auth/EmailVerificationTest.php
+plus retirement/absence assertions
+
+13C-5
+focused structural + behavioral HTTP/request-forgery acceptance tests
+no business redesign
+
+13C-6
+full regression / PostgreSQL / Redis-session evidence / exact-SHA freeze
+```
+
+Any newly discovered mutation surface outside this inventory reopens Phase 13B before implementation continues.
 
 #### Phase 13C-1 — Leave Transition Hardening
 
@@ -6224,14 +6358,14 @@ GET old mutation URL
 -> 404 or 405
 -> leave status unchanged
 
-POST without valid CSRF
--> rejected
+unsafe cross-site / untrusted-origin POST without matching CSRF token
+-> rejected by request-forgery protection
 -> leave status unchanged
 
-authorized POST with valid CSRF
+authorized POST with accepted request-forgery evidence
 -> mutation succeeds
 
-unauthorized POST with valid CSRF
+unauthorized POST with accepted request-forgery evidence
 -> 403
 -> leave status unchanged
 ```
@@ -6243,14 +6377,14 @@ GET old mutation URL
 -> 404 or 405
 -> task status unchanged
 
-POST without valid CSRF
--> rejected
+unsafe cross-site / untrusted-origin POST without matching CSRF token
+-> rejected by request-forgery protection
 -> task status unchanged
 
-authorized POST with valid CSRF
+authorized POST with accepted request-forgery evidence
 -> requested transition succeeds
 
-unauthorized POST with valid CSRF
+unauthorized POST with accepted request-forgery evidence
 -> 403
 -> task status unchanged
 ```
@@ -6342,7 +6476,7 @@ GET logout is removed
 all known browser mutation callers use unsafe HTTP methods
 all browser mutation callers carry CSRF protection
 old GET mutation URLs fail without changing state
-missing/invalid CSRF fails without changing state
+forged unsafe requests without acceptable origin/token evidence fail without changing state
 valid CSRF never bypasses Phase 12 authorization
 Phase 12 Policy behavior remains unchanged
 OIDC redirect/callback flow remains intact
