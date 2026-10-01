@@ -7,21 +7,23 @@ use App\Models\Presence;
 use App\Models\Employee;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Session;
+use Illuminate\Support\Facades\Gate;
 
 class PresenceController extends Controller
 {
     /**
      * Display a listing of the presences.
      */
-    public function index()
+    public function index(Request $request)
     {
-        if(session('role') == 'Admin' || session('role') == 'HR Manager'){
+        Gate::authorize('viewAny', Presence::class);
+
+        if (Gate::allows('viewAll', Presence::class)) {
             $presences = Presence::all();
-        }else {
-            $presences = Presence::where('employee_id', session('employee_id'))->get();
+        } else {
+            $presences = Presence::where('employee_id', $request->user()->employee_id)->get();
         }
+
         return view('presences.index', compact('presences'));
     }
 
@@ -30,7 +32,11 @@ class PresenceController extends Controller
      */
     public function create()
     {
-        $employees = Employee::all();
+        Gate::authorize('create', Presence::class);
+
+        $isAdministrator = Gate::allows('administer', Presence::class);
+        $employees = $isAdministrator ? Employee::all() : collect();
+
         return view('presences.create', compact('employees'));
     }
 
@@ -39,9 +45,11 @@ class PresenceController extends Controller
      */
     public function store(Request $request)
     {
-        $isAdmin = in_array(session('role'), ['Admin', 'HR Manager']);
+        Gate::authorize('create', Presence::class);
 
-        if ($isAdmin) {
+        $isAdministrator = Gate::allows('administer', Presence::class);
+
+        if ($isAdministrator) {
             // ===== Admin / HR: manual input =====
             $validated = $request->validate([
                 'employee_id' => 'required|exists:employees,id',
@@ -50,12 +58,11 @@ class PresenceController extends Controller
                 'status'      => 'required|in:present,absent,late,leave',
             ]);
 
-            $validated['check_in'] = Carbon::parse($validated['check_in']);
-            $validated['date']     = Carbon::parse($validated['date'])->toDateString();
+            $parsedDate = Carbon::parse($validated['date'])->toDateString();
 
             // Cek apakah sudah ada presence untuk karyawan & tanggal ini
             $alreadyExists = Presence::where('employee_id', $validated['employee_id'])
-                ->whereDate('date', $validated['date'])
+                ->whereDate('date', $parsedDate)
                 ->exists();
 
             if ($alreadyExists) {
@@ -66,13 +73,18 @@ class PresenceController extends Controller
                     ]);
             }
 
-            $validated['check_out'] = null;
-
-            Presence::create($validated);
+            Presence::create([
+                'employee_id' => $validated['employee_id'],
+                'check_in'    => Carbon::parse($validated['check_in']),
+                'check_out'   => null,
+                'date'        => $parsedDate,
+                'status'      => $validated['status'],
+            ]);
 
         } else {
             // ===== Employee biasa: self check-in =====
-            $employeeId = session('employee_id');
+            $user       = $request->user();
+            $employeeId = $user->employee_id;
             $today      = Carbon::today();
 
             // Cek double check-in
@@ -105,6 +117,8 @@ class PresenceController extends Controller
      */
     public function show(Presence $presence)
     {
+        Gate::authorize('view', $presence);
+
         return view('presences.show', compact('presence'));
     }
 
@@ -113,7 +127,10 @@ class PresenceController extends Controller
      */
     public function edit(Presence $presence)
     {
+        Gate::authorize('update', $presence);
+
         $employees = Employee::all();
+
         return view('presences.edit', compact('presence', 'employees'));
     }
 
@@ -122,12 +139,14 @@ class PresenceController extends Controller
      */
     public function update(Request $request, Presence $presence)
     {
+        Gate::authorize('update', $presence);
+
         $request->merge([
-            'check_in' => date('Y-m-d H:i:s', strtotime($request->check_in)),
+            'check_in'  => date('Y-m-d H:i:s', strtotime($request->check_in)),
             'check_out' => date('Y-m-d H:i:s', strtotime($request->check_out)),
         ]);
 
-        $request->validate([
+        $validated = $request->validate([
             'employee_id' => 'required|exists:employees,id',
             'check_in'    => 'required|date_format:Y-m-d H:i:s',
             'check_out'   => 'required|date_format:Y-m-d H:i:s|after_or_equal:check_in',
@@ -135,7 +154,13 @@ class PresenceController extends Controller
             'status'      => 'required|in:present,absent,late,leave',
         ]);
 
-        $presence->update($request->all());
+        $presence->update([
+            'employee_id' => $validated['employee_id'],
+            'check_in'    => $validated['check_in'],
+            'check_out'   => $validated['check_out'],
+            'date'        => $validated['date'],
+            'status'      => $validated['status'],
+        ]);
 
         return redirect()->route('presences.index')->with('success', 'Presence updated successfully.');
     }
@@ -145,6 +170,8 @@ class PresenceController extends Controller
      */
     public function destroy(Presence $presence)
     {
+        Gate::authorize('delete', $presence);
+
         $presence->delete();
 
         return redirect()->route('presences.index')->with('success', 'Presence deleted successfully.');
@@ -152,30 +179,22 @@ class PresenceController extends Controller
 
     public function checkIn(Request $request)
     {
-        $user = Auth::user();
-        // kalau kamu ikat Employee via session, kita fallback ke session dulu
-        $employeeId = session('employee_id');
+        Gate::authorize('selfCheckIn', Presence::class);
 
-        // fallback lain: kalau User punya relasi employee:
-        if (!$employeeId && optional($user)->employee) {
-            $employeeId = $user->employee->id;
-        }
-
-        if (!$employeeId) {
-            return back()->withErrors(['attendance' => 'Employee context is missing.']);
-        }
+        $user       = $request->user();
+        $employeeId = $user->employee_id;
 
         // Cegah double check-in
-        $today = now()->toDateString();
-        $exists = \App\Models\Presence::where('employee_id',$employeeId)
-            ->whereDate('date',$today)
+        $today  = now()->toDateString();
+        $exists = Presence::where('employee_id', $employeeId)
+            ->whereDate('date', $today)
             ->exists();
 
         if ($exists) {
             return back()->withErrors(['attendance' => 'You have already checked in today.']);
         }
 
-        \App\Models\Presence::create([
+        Presence::create([
             'employee_id' => $employeeId,
             'check_in'    => $today, // kolommu tipe DATE, jadi pakai Y-m-d
             'check_out'   => null,

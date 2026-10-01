@@ -6,21 +6,21 @@ use App\Models\Payroll;
 use App\Models\Employee;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 
 class PayrollController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        // Use session role for backward compatibility with existing app
-        $role = session('role');
+        Gate::authorize('viewAny', Payroll::class);
 
-        if ($role === 'Admin' || $role === 'HR Manager') {
+        if (Gate::allows('viewAll', Payroll::class)) {
             // eager load employee to avoid n+1 when rendering views
             $payrolls = Payroll::with('employee')->orderByDesc('payment_date')->get();
         } else {
-            $employeeId = session('employee_id');
+            $employeeId = $request->user()->employee_id;
             $payrolls = Payroll::with('employee')
                 ->where('employee_id', $employeeId)
                 ->orderByDesc('payment_date')
@@ -32,12 +32,16 @@ class PayrollController extends Controller
 
     public function create()
     {
+        Gate::authorize('create', Payroll::class);
+
         $employees = Employee::orderBy('fullname')->get();
         return view('payrolls.create', compact('employees'));
     }
 
     public function store(Request $request)
     {
+        Gate::authorize('create', Payroll::class);
+
         $validated = $request->validate([
             'employee_id'  => 'required|exists:employees,id',
             'salary'       => 'required|numeric|min:0',
@@ -87,18 +91,24 @@ class PayrollController extends Controller
 
     public function show(Payroll $payroll)
     {
+        Gate::authorize('view', $payroll);
+
         $payroll->load('employee');
         return view('payrolls.show', compact('payroll'));
     }
 
     public function edit(Payroll $payroll)
     {
+        Gate::authorize('update', $payroll);
+
         $employees = Employee::orderBy('fullname')->get();
         return view('payrolls.edit', compact('payroll', 'employees'));
     }
 
     public function update(Request $request, Payroll $payroll)
     {
+        Gate::authorize('update', $payroll);
+
         $validated = $request->validate([
             'employee_id'  => 'required|exists:employees,id',
             'salary'       => 'required|numeric|min:0',
@@ -138,6 +148,8 @@ class PayrollController extends Controller
 
     public function destroy(Payroll $payroll)
     {
+        Gate::authorize('delete', $payroll);
+
         try {
             DB::transaction(function () use ($payroll) {
                 $payroll->delete();

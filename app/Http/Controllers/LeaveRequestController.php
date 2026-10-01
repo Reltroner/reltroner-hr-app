@@ -5,18 +5,21 @@ namespace App\Http\Controllers;
 use App\Models\LeaveRequest;
 use App\Models\Employee;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 
 class LeaveRequestController extends Controller
 {
     /**
      * Display a listing of the leave requests.
      */
-    public function index()
+    public function index(Request $request)
     {
-        if (session('role') === 'Admin' || session('role') === 'HR Manager') {
+        Gate::authorize('viewAny', LeaveRequest::class);
+
+        if (Gate::allows('viewAll', LeaveRequest::class)) {
             $leave_requests = LeaveRequest::all();
         } else {
-            $leave_requests = LeaveRequest::where('employee_id', session('employee_id'))->get();
+            $leave_requests = LeaveRequest::where('employee_id', $request->user()->employee_id)->get();
         }
 
         return view('leave_requests.index', compact('leave_requests'));
@@ -27,7 +30,11 @@ class LeaveRequestController extends Controller
      */
     public function create()
     {
-        $employees = Employee::all();
+        Gate::authorize('create', LeaveRequest::class);
+
+        $isAdministrator = Gate::allows('administer', LeaveRequest::class);
+        $employees = $isAdministrator ? Employee::all() : collect();
+
         return view('leave_requests.create', compact('employees'));
     }
 
@@ -36,23 +43,40 @@ class LeaveRequestController extends Controller
      */
     public function store(Request $request)
     {
-        $isPrivileged = session('role') === 'Admin' || session('role') === 'HR Manager';
+        Gate::authorize('create', LeaveRequest::class);
 
-        $request->validate([
-            'leave_type'  => 'required|string|max:255',
-            'start_date'  => 'required|date',
-            'end_date'    => 'required|date|after_or_equal:start_date',
-            'employee_id' => $isPrivileged ? 'required|exists:employees,id' : '',
-            'status'      => $isPrivileged ? 'required|in:pending,approved,rejected' : '',
-        ]);
+        $isAdministrator = Gate::allows('administer', LeaveRequest::class);
 
-        $data = [
-            'employee_id' => $isPrivileged ? $request->employee_id : session('employee_id'),
-            'leave_type'  => $request->leave_type,
-            'start_date'  => $request->start_date,
-            'end_date'    => $request->end_date,
-            'status'      => $isPrivileged ? $request->status : 'pending',
+        $rules = [
+            'leave_type' => 'required|string|max:255',
+            'start_date' => 'required|date',
+            'end_date'   => 'required|date|after_or_equal:start_date',
         ];
+
+        if ($isAdministrator) {
+            $rules['employee_id'] = 'required|exists:employees,id';
+            $rules['status']      = 'required|in:pending,approved,rejected';
+        }
+
+        $validated = $request->validate($rules);
+
+        if ($isAdministrator) {
+            $data = [
+                'employee_id' => $validated['employee_id'],
+                'leave_type'  => $validated['leave_type'],
+                'start_date'  => $validated['start_date'],
+                'end_date'    => $validated['end_date'],
+                'status'      => $validated['status'],
+            ];
+        } else {
+            $data = [
+                'employee_id' => $request->user()->employee_id,
+                'leave_type'  => $validated['leave_type'],
+                'start_date'  => $validated['start_date'],
+                'end_date'    => $validated['end_date'],
+                'status'      => 'pending',
+            ];
+        }
 
         LeaveRequest::create($data);
 
@@ -64,6 +88,8 @@ class LeaveRequestController extends Controller
      */
     public function show(LeaveRequest $leave_request)
     {
+        Gate::authorize('view', $leave_request);
+
         return view('leave_requests.show', compact('leave_request'));
     }
 
@@ -73,6 +99,9 @@ class LeaveRequestController extends Controller
     public function approve(int $id)
     {
         $leave_request = LeaveRequest::findOrFail($id);
+
+        Gate::authorize('approve', $leave_request);
+
         $leave_request->update(['status' => 'approved']);
 
         return redirect()->route('leave_requests.index')->with('success', 'Leave request approved successfully.');
@@ -84,6 +113,9 @@ class LeaveRequestController extends Controller
     public function reject(int $id)
     {
         $leave_request = LeaveRequest::findOrFail($id);
+
+        Gate::authorize('reject', $leave_request);
+
         $leave_request->update(['status' => 'rejected']);
 
         return redirect()->route('leave_requests.index')->with('success', 'Leave request rejected successfully.');
@@ -94,7 +126,11 @@ class LeaveRequestController extends Controller
      */
     public function edit(LeaveRequest $leave_request)
     {
-        $employees = Employee::all();
+        Gate::authorize('update', $leave_request);
+
+        $isAdministrator = Gate::allows('administer', LeaveRequest::class);
+        $employees = $isAdministrator ? Employee::all() : collect();
+
         return view('leave_requests.edit', compact('leave_request', 'employees'));
     }
 
@@ -103,15 +139,40 @@ class LeaveRequestController extends Controller
      */
     public function update(Request $request, LeaveRequest $leave_request)
     {
-        $request->validate([
-            'employee_id' => 'required|exists:employees,id',
-            'leave_type'  => 'required|string|max:255',
-            'start_date'  => 'required|date',
-            'end_date'    => 'required|date|after_or_equal:start_date',
-            'status'      => 'required|in:pending,approved,rejected',
-        ]);
+        Gate::authorize('update', $leave_request);
 
-        $leave_request->update($request->all());
+        $isAdministrator = Gate::allows('administer', LeaveRequest::class);
+
+        $rules = [
+            'leave_type' => 'required|string|max:255',
+            'start_date' => 'required|date',
+            'end_date'   => 'required|date|after_or_equal:start_date',
+        ];
+
+        if ($isAdministrator) {
+            $rules['employee_id'] = 'required|exists:employees,id';
+            $rules['status']      = 'required|in:pending,approved,rejected';
+        }
+
+        $validated = $request->validate($rules);
+
+        if ($isAdministrator) {
+            $data = [
+                'employee_id' => $validated['employee_id'],
+                'leave_type'  => $validated['leave_type'],
+                'start_date'  => $validated['start_date'],
+                'end_date'    => $validated['end_date'],
+                'status'      => $validated['status'],
+            ];
+        } else {
+            $data = [
+                'leave_type' => $validated['leave_type'],
+                'start_date' => $validated['start_date'],
+                'end_date'   => $validated['end_date'],
+            ];
+        }
+
+        $leave_request->update($data);
 
         return redirect()->route('leave_requests.index')->with('success', 'Leave request updated successfully.');
     }
@@ -121,6 +182,8 @@ class LeaveRequestController extends Controller
      */
     public function destroy(LeaveRequest $leave_request)
     {
+        Gate::authorize('delete', $leave_request);
+
         $leave_request->delete();
 
         return redirect()->route('leave_requests.index')->with('success', 'Leave request deleted successfully.');

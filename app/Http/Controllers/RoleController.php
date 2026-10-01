@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Role;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 
 class RoleController extends Controller
 {
@@ -13,6 +14,8 @@ class RoleController extends Controller
      */
     public function index()
     {
+        Gate::authorize('viewAny', Role::class);
+
         $roles = Role::latest()->get();
         return view('roles.index', compact('roles'));
     }
@@ -22,6 +25,8 @@ class RoleController extends Controller
      */
     public function create()
     {
+        Gate::authorize('create', Role::class);
+
         return view('roles.create');
     }
 
@@ -30,10 +35,14 @@ class RoleController extends Controller
      */
     public function store(Request $request)
     {
+        Gate::authorize('create', Role::class);
+
         $validated = $request->validate([
             'title'       => 'required|string|max:255|unique:roles,title',
             'description' => 'nullable|string',
         ]);
+
+        Gate::authorize('create', [Role::class, $validated['title']]);
 
         Role::create($validated);
 
@@ -46,6 +55,8 @@ class RoleController extends Controller
      */
     public function show(Role $role)
     {
+        Gate::authorize('view', $role);
+
         return view('roles.show', compact('role'));
     }
 
@@ -54,9 +65,8 @@ class RoleController extends Controller
      */
     public function edit(Role $role)
     {
-        if (in_array($role->title, ['Admin', 'HR Manager', 'Developer', 'Accountant', 'Data Entry', 'Animator', 'Marketer'])) {
-        return redirect()->route('roles.index')->with('error', 'Editing this role is not allowed.');
-        }
+        Gate::authorize('update', $role);
+
         return view('roles.edit', compact('role'));
     }
 
@@ -65,12 +75,16 @@ class RoleController extends Controller
      */
     public function update(Request $request, Role $role)
     {
-        $request->validate([
+        Gate::authorize('update', $role);
+
+        $validated = $request->validate([
             'title'       => 'required|string|max:255',
             'description' => 'nullable|string',
         ]);
 
-        $role->update($request->all());
+        Gate::authorize('update', [$role, $validated['title']]);
+
+        $role->update($validated);
 
         return redirect()->route('roles.index')->with('success', 'Role updated successfully.');
     }
@@ -80,12 +94,7 @@ class RoleController extends Controller
      */
     public function destroy(Role $role)
     {
-        // Protect critical roles
-        $protectedRoles = ['Admin', 'HR Manager', 'Developer', 'Accountant', 'Data Entry', 'Animator', 'Marketer'];
-
-        if (in_array($role->title, $protectedRoles)) {
-            return redirect()->route('roles.index')->with('error', "You cannot delete the '{$role->title}' role.");
-        }
+        Gate::authorize('delete', $role);
 
         $role->delete();
 
