@@ -277,7 +277,7 @@ class TaskAuthorizationTest extends TestCase
 
         $otherTask = $this->createTask($otherEmp, ['status' => 'pending']);
 
-        $response = $this->actingAs($adminUser)->get("/tasks/{$otherTask->id}/mark-complete");
+        $response = $this->actingAs($adminUser)->post("/tasks/{$otherTask->id}/mark-complete");
 
         $response->assertRedirect(route('tasks.index'));
         $otherTask->refresh();
@@ -292,7 +292,7 @@ class TaskAuthorizationTest extends TestCase
 
         $otherTask = $this->createTask($otherEmp, ['status' => 'completed']);
 
-        $response = $this->actingAs($adminUser)->get("/tasks/{$otherTask->id}/mark-pending");
+        $response = $this->actingAs($adminUser)->post("/tasks/{$otherTask->id}/mark-pending");
 
         $response->assertRedirect(route('tasks.index'));
         $otherTask->refresh();
@@ -511,7 +511,7 @@ class TaskAuthorizationTest extends TestCase
         [$selfUser, $selfEmp] = $this->createUserWithRole($role);
         $ownTask = $this->createTask($selfEmp, ['status' => 'pending']);
 
-        $response = $this->actingAs($selfUser)->get("/tasks/{$ownTask->id}/mark-complete");
+        $response = $this->actingAs($selfUser)->post("/tasks/{$ownTask->id}/mark-complete");
 
         $response->assertRedirect(route('tasks.index'));
         $ownTask->refresh();
@@ -524,7 +524,7 @@ class TaskAuthorizationTest extends TestCase
         [$selfUser, $selfEmp] = $this->createUserWithRole($role);
         $ownTask = $this->createTask($selfEmp, ['status' => 'completed']);
 
-        $response = $this->actingAs($selfUser)->get("/tasks/{$ownTask->id}/mark-pending");
+        $response = $this->actingAs($selfUser)->post("/tasks/{$ownTask->id}/mark-pending");
 
         $response->assertRedirect(route('tasks.index'));
         $ownTask->refresh();
@@ -538,7 +538,7 @@ class TaskAuthorizationTest extends TestCase
         [, $otherEmp] = $this->createUserWithRole('Developer');
         $otherTask = $this->createTask($otherEmp, ['status' => 'pending']);
 
-        $response = $this->actingAs($selfUser)->get("/tasks/{$otherTask->id}/mark-complete");
+        $response = $this->actingAs($selfUser)->post("/tasks/{$otherTask->id}/mark-complete");
 
         $response->assertStatus(403);
         $otherTask->refresh();
@@ -552,7 +552,7 @@ class TaskAuthorizationTest extends TestCase
         [, $otherEmp] = $this->createUserWithRole('Developer');
         $otherTask = $this->createTask($otherEmp, ['status' => 'completed']);
 
-        $response = $this->actingAs($selfUser)->get("/tasks/{$otherTask->id}/mark-pending");
+        $response = $this->actingAs($selfUser)->post("/tasks/{$otherTask->id}/mark-pending");
 
         $response->assertStatus(403);
         $otherTask->refresh();
@@ -597,8 +597,8 @@ class TaskAuthorizationTest extends TestCase
             ['get', "/tasks/{$task->id}/edit"],
             ['put', "/tasks/{$task->id}", []],
             ['delete', "/tasks/{$task->id}"],
-            ['get', "/tasks/{$task->id}/mark-complete"],
-            ['get', "/tasks/{$task->id}/mark-pending"],
+            ['post', "/tasks/{$task->id}/mark-complete", []],
+            ['post', "/tasks/{$task->id}/mark-pending", []],
         ];
 
         foreach ($endpoints as $entry) {
@@ -631,8 +631,8 @@ class TaskAuthorizationTest extends TestCase
         $this->actingAs($contractorUser)->get("/tasks/{$task->id}/edit")->assertStatus(403);
         $this->actingAs($contractorUser)->put("/tasks/{$task->id}", [])->assertStatus(403);
         $this->actingAs($contractorUser)->delete("/tasks/{$task->id}")->assertStatus(403);
-        $this->actingAs($contractorUser)->get("/tasks/{$task->id}/mark-complete")->assertStatus(403);
-        $this->actingAs($contractorUser)->get("/tasks/{$task->id}/mark-pending")->assertStatus(403);
+        $this->actingAs($contractorUser)->post("/tasks/{$task->id}/mark-complete")->assertStatus(403);
+        $this->actingAs($contractorUser)->post("/tasks/{$task->id}/mark-pending")->assertStatus(403);
     }
 
     public function test_user_without_employee_relationship_is_denied_task_index(): void
@@ -692,10 +692,89 @@ class TaskAuthorizationTest extends TestCase
         [, $devEmp] = $this->createUserWithRole('Developer');
         $task = $this->createTask($devEmp, ['status' => 'pending']);
 
-        $response = $this->actingAs($user)->get("/tasks/{$task->id}/mark-complete");
+        $response = $this->actingAs($user)->post("/tasks/{$task->id}/mark-complete");
 
         $response->assertStatus(403);
         $task->refresh();
         $this->assertSame('pending', $task->status);
+    }
+
+    public function test_user_without_employee_relationship_is_denied_mark_pending(): void
+    {
+        $user = $this->createUnlinkedUserWithLegacyRole('Admin');
+        [, $devEmp] = $this->createUserWithRole('Developer');
+        $task = $this->createTask($devEmp, ['status' => 'completed']);
+
+        $response = $this->actingAs($user)->post("/tasks/{$task->id}/mark-pending");
+
+        $response->assertStatus(403);
+        $task->refresh();
+        $this->assertSame('completed', $task->status);
+    }
+
+    public function test_privileged_user_cannot_mutate_task_via_legacy_get_mark_complete(): void
+    {
+        [$adminUser] = $this->createUserWithRole('Admin');
+        [, $otherEmp] = $this->createUserWithRole('Developer');
+
+        $task = $this->createTask($otherEmp, ['status' => 'pending']);
+
+        $response = $this->actingAs($adminUser)->get("/tasks/{$task->id}/mark-complete");
+
+        $response->assertStatus(405);
+        $task->refresh();
+        $this->assertSame('pending', $task->status);
+    }
+
+    public function test_privileged_user_cannot_mutate_task_via_legacy_get_mark_pending(): void
+    {
+        [$adminUser] = $this->createUserWithRole('Admin');
+        [, $otherEmp] = $this->createUserWithRole('Developer');
+
+        $task = $this->createTask($otherEmp, ['status' => 'completed']);
+
+        $response = $this->actingAs($adminUser)->get("/tasks/{$task->id}/mark-pending");
+
+        $response->assertStatus(405);
+        $task->refresh();
+        $this->assertSame('completed', $task->status);
+    }
+
+    public function test_task_index_renders_transition_controls_as_csrf_protected_post_forms(): void
+    {
+        [$adminUser, $adminEmp] = $this->createUserWithRole('Admin');
+        [, $devEmp] = $this->createUserWithRole('Developer');
+
+        $pendingTask = $this->createTask($devEmp, ['status' => 'pending']);
+        $completedTask = $this->createTask($devEmp, ['status' => 'completed']);
+
+        $response = $this->actingAs($adminUser)->get('/tasks');
+
+        $response->assertSuccessful();
+
+        $content = $response->getContent();
+
+        $markCompleteUrl = route('tasks.markComplete', $pendingTask->id);
+        $markPendingUrl = route('tasks.markPending', $completedTask->id);
+
+        // Prove mark-complete action points to named route and uses POST
+        $this->assertStringContainsString('action="' . $markCompleteUrl . '"', $content);
+        $this->assertMatchesRegularExpression('/<form[^>]+action="' . preg_quote($markCompleteUrl, '/') . '"[^>]+method="POST"/i', $content);
+
+        // Prove mark-pending action points to named route and uses POST
+        $this->assertStringContainsString('action="' . $markPendingUrl . '"', $content);
+        $this->assertMatchesRegularExpression('/<form[^>]+action="' . preg_quote($markPendingUrl, '/') . '"[^>]+method="POST"/i', $content);
+
+        // Prove request-token hidden input generated by @csrf is present
+        $this->assertMatchesRegularExpression('/<input[^>]+type="hidden"[^>]+name="_token"/i', $content);
+
+        // Prove submit controls with expected labels are present
+        $this->assertStringContainsString('Mark Complete', $content);
+        $this->assertStringContainsString('Mark Pending', $content);
+
+        // Prove no state-changing mark-complete/mark-pending anchor tags remain
+        $this->assertStringNotContainsString('<a href="' . $markCompleteUrl . '"', $content);
+        $this->assertStringNotContainsString('<a href="' . $markPendingUrl . '"', $content);
+        $this->assertDoesNotMatchRegularExpression('/<a\s+[^>]*href=["\'][^"\']*\/tasks\/\d+\/(mark-complete|mark-pending)/i', $content);
     }
 }

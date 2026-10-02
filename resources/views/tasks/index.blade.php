@@ -73,9 +73,15 @@
                             <td>
                                 <a href="{{ route('tasks.show', $task->id) }}" class="btn btn-info btn-sm mb-1">View</a>
                                 @if ($task->status === 'pending')
-                                    <a href="{{ route('tasks.markComplete', $task->id) }}" class="btn btn-success btn-sm mb-1">Mark Complete</a>
+                                    <form action="{{ route('tasks.markComplete', $task->id) }}" method="POST" class="d-inline">
+                                        @csrf
+                                        <button type="submit" class="btn btn-success btn-sm mb-1">Mark Complete</button>
+                                    </form>
                                 @else
-                                    <a href="{{ route('tasks.markPending', $task->id) }}" class="btn btn-warning btn-sm mb-1">Mark Pending</a>
+                                    <form action="{{ route('tasks.markPending', $task->id) }}" method="POST" class="d-inline">
+                                        @csrf
+                                        <button type="submit" class="btn btn-warning btn-sm mb-1">Mark Pending</button>
+                                    </form>
                                 @endif
                                 @if(session('role') == 'Admin' || session('role') == 'HR Manager')
                                     <a href="{{ route('tasks.edit', $task->id) }}" class="btn btn-primary btn-sm mb-1">Edit</a>
@@ -110,9 +116,15 @@
                 <div>
                     <a href="{{ route('tasks.show', $task->id) }}" class="btn btn-info btn-sm mb-1">View</a>
                     @if ($task->status === 'pending')
-                        <a href="{{ route('tasks.markComplete', $task->id) }}" class="btn btn-success btn-sm mb-1">Mark Complete</a>
+                        <form action="{{ route('tasks.markComplete', $task->id) }}" method="POST" class="d-inline">
+                            @csrf
+                            <button type="submit" class="btn btn-success btn-sm mb-1">Mark Complete</button>
+                        </form>
                     @else
-                        <a href="{{ route('tasks.markPending', $task->id) }}" class="btn btn-warning btn-sm mb-1">Mark Pending</a>
+                        <form action="{{ route('tasks.markPending', $task->id) }}" method="POST" class="d-inline">
+                            @csrf
+                            <button type="submit" class="btn btn-warning btn-sm mb-1">Mark Pending</button>
+                        </form>
                     @endif
                     @if(session('role') == 'Admin' || session('role') == 'HR Manager')
                         <a href="{{ route('tasks.edit', $task->id) }}" class="btn btn-primary btn-sm mb-1">Edit</a>
