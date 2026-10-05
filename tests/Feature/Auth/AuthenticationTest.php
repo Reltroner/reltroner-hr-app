@@ -62,13 +62,13 @@ class AuthenticationTest extends TestCase
         $response->assertRedirect('/');
     }
 
-    public function test_users_can_logout_via_legacy_get_route(): void
+    public function test_users_cannot_logout_via_legacy_get_route(): void
     {
         $user = User::factory()->create();
 
         $response = $this->actingAs($user)->get('/logout');
 
-        $this->assertGuest();
-        $response->assertRedirect('/');
+        $response->assertStatus(405);
+        $this->assertAuthenticated();
     }
 }

@@ -376,31 +376,27 @@ class OidcLogoutTest extends TestCase
     }
 
     /**
-     * G. OIDC-bound session calling legacy GET /logout route also redirects to Keycloak.
+     * G. OIDC-bound session calling legacy GET /logout route is rejected with 405
+     * and does not destroy the session, consume logout context, or redirect to Keycloak.
      */
-    public function test_oidc_bound_get_logout_route_also_redirects_to_keycloak(): void
+    public function test_oidc_bound_get_logout_route_is_rejected_and_does_not_mutate_session(): void
     {
         [$user, $identity] = $this->createApprovedIdentity();
         $bindingData = $this->createBindingData($user, $identity);
+        $contextData = $this->createLogoutContextData();
 
         $response = $this->actingAs($user)
             ->withSession([
                 OidcSessionBinding::SESSION_KEY => $bindingData,
-                OidcLogoutContext::SESSION_KEY => $this->createLogoutContextData(),
+                OidcLogoutContext::SESSION_KEY => $contextData,
             ])
             ->get('/logout');
 
-        $this->assertGuest();
-        $response->assertStatus(302);
-
-        $targetUrl = (string) $response->headers->get('Location');
-        $parsed = parse_url($targetUrl);
-        $this->assertSame('/realms/reltroner/protocol/openid-connect/logout', $parsed['path'] ?? null);
-
-        $params = $this->parseRedirectQuery($targetUrl);
-        $this->assertSame('hrm-web', $params['client_id'] ?? null);
-        $this->assertSame(self::FAKE_ID_TOKEN_HINT, $params['id_token_hint'] ?? null);
-        $this->assertSame('https://hrm.reltroner.com/', $params['post_logout_redirect_uri'] ?? null);
+        $response->assertStatus(405);
+        $this->assertAuthenticated();
+        $response->assertSessionHas(OidcSessionBinding::SESSION_KEY, $bindingData);
+        $response->assertSessionHas(OidcLogoutContext::SESSION_KEY, $contextData);
+        $response->assertHeaderMissing('Location');
     }
 
     /**
@@ -509,5 +505,52 @@ class OidcLogoutTest extends TestCase
         $this->assertArrayNotHasKey('id_token_hint', $bindingData);
         $this->assertArrayNotHasKey('access_token', $bindingData);
         $this->assertArrayNotHasKey('refresh_token', $bindingData);
+    }
+
+    /**
+     * Security invariant: navigation logout controls use genuine native POST submit buttons with CSRF.
+     */
+    public function test_navigation_logout_controls_are_native_csrf_protected_post_buttons(): void
+    {
+        [$user, $identity] = $this->createApprovedIdentity();
+        $bindingData = $this->createBindingData($user, $identity);
+
+        $response = $this->actingAs($user)
+            ->withSession([
+                OidcSessionBinding::SESSION_KEY => $bindingData,
+            ])
+            ->get('/profile');
+
+        $response->assertOk();
+
+        $content = $response->getContent();
+        $logoutUrl = route('logout');
+
+        // Logout form action targets named route and uses POST method
+        $this->assertStringContainsString('action="'.$logoutUrl.'"', $content);
+        $this->assertSame(
+            2,
+            preg_match_all('/<form\b(?=[^>]*\bmethod=["\']POST["\'])(?=[^>]*\baction=["\']'.preg_quote($logoutUrl, '/').'["\'])[^>]*>/i', $content),
+            'Both desktop and responsive navigation logout forms must target the named route via POST.'
+        );
+
+        // CSRF hidden _token input is rendered
+        $this->assertMatchesRegularExpression('/<input[^>]+type="hidden"[^>]+name="_token"/i', $content);
+
+        // Two native submit buttons corresponding to desktop and responsive navigation
+        $this->assertSame(
+            2,
+            preg_match_all('/<button[^>]+type="submit"[^>]*>\s*Log Out\s*<\/button>/is', $content),
+            'Both desktop and responsive navigation logout forms must contain native submit buttons with label "Log Out".'
+        );
+
+        // No logout anchor tags
+        $this->assertStringNotContainsString('<a href="'.$logoutUrl.'"', $content);
+        $this->assertDoesNotMatchRegularExpression('/<a\s+[^>]*href=["\'][^"\']*\/logout/i', $content);
+
+        // No onclick logout submission
+        $this->assertDoesNotMatchRegularExpression('/onclick=["\'][^"\']*logout/i', $content);
+        $this->assertStringNotContainsString('this.closest(\'form\').submit()', $content);
+        $this->assertStringNotContainsString('this.closest("form").submit()', $content);
     }
 }
