@@ -94,8 +94,8 @@ LeaveRequestController.php
 
 ---
 
-# 🌍 Live Demo  
-🔗 https://hrm.reltroner.com
+# 🌍 Live Deployment  
+[https://hrm.reltroner.com/](https://hrm.reltroner.com/)
 
 ---
 
